@@ -1,3 +1,5 @@
+import { ApiProperty, ApiPropertyOptional } from "@nestjs/swagger";
+
 /**
  * 공통 응답 DTO
  * 모든 API 응답은 이 포맷을 따릅니다.
@@ -7,8 +9,19 @@
  * 성공 응답
  */
 export class SuccessResponseDto<T = unknown> {
+  @ApiProperty({ example: true })
   success: true;
+
+  @ApiProperty()
   data: T;
+
+  @ApiProperty({
+    type: "object",
+    properties: {
+      requestId: { type: "string", example: "req_xxx" },
+      timestamp: { type: "string", example: "2026-01-05T00:00:00.000Z" },
+    },
+  })
   meta: {
     requestId: string;
     timestamp: string;
@@ -28,12 +41,30 @@ export class SuccessResponseDto<T = unknown> {
  * 실패 응답
  */
 export class ErrorResponseDto {
+  @ApiProperty({ example: false })
   success: false;
+
+  @ApiProperty({
+    type: "object",
+    properties: {
+      code: { type: "string", example: "VALIDATION_ERROR" },
+      message: { type: "string", example: "입력값 검증에 실패했습니다." },
+      details: { type: "object", additionalProperties: true },
+    },
+  })
   error: {
     code: string;
     message: string;
     details?: unknown;
   };
+
+  @ApiProperty({
+    type: "object",
+    properties: {
+      requestId: { type: "string", example: "req_xxx" },
+      timestamp: { type: "string", example: "2026-01-05T00:00:00.000Z" },
+    },
+  })
   meta: {
     requestId: string;
     timestamp: string;

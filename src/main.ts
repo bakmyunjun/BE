@@ -1,6 +1,7 @@
 import { NestFactory } from "@nestjs/core";
 import { ValidationPipe } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
+import { SwaggerModule, DocumentBuilder } from "@nestjs/swagger";
 import helmet from "helmet";
 import { AppModule } from "./app.module";
 import type { Env } from "./config/env.schema";
@@ -13,13 +14,17 @@ async function bootstrap() {
   const nodeEnv = configService.get("NODE_ENV", { infer: true });
 
   // Helmet 보안 헤더 설정
+  // Swagger UI를 위해 CSP 완화 (개발 환경)
   app.use(
     helmet({
       contentSecurityPolicy: {
         directives: {
           defaultSrc: ["'self'"],
           styleSrc: ["'self'", "'unsafe-inline'"],
-          scriptSrc: ["'self'"],
+          scriptSrc:
+            nodeEnv === "production"
+              ? ["'self'"]
+              : ["'self'", "'unsafe-inline'", "'unsafe-eval'"], // Swagger UI를 위해 개발 환경에서만 완화
           imgSrc: ["'self'", "data:", "https:"],
         },
       },
@@ -58,6 +63,35 @@ async function bootstrap() {
 
   // 글로벌 인터셉터 (응답 변환)
   app.useGlobalInterceptors(new TransformInterceptor());
+
+  // Swagger API 문서 설정
+  if (nodeEnv !== "production") {
+    const config = new DocumentBuilder()
+      .setTitle("Bakmyunjun API")
+      .setDescription("Bakmyunjun 백엔드 API 문서")
+      .setVersion("1.0")
+      .addBearerAuth(
+        {
+          type: "http",
+          scheme: "bearer",
+          bearerFormat: "JWT",
+          name: "JWT",
+          description: "JWT 토큰을 입력하세요",
+          in: "header",
+        },
+        "JWT-auth"
+      )
+      .addTag("auth", "인증 관련 API")
+      .addTag("users", "사용자 관련 API")
+      .build();
+
+    const document = SwaggerModule.createDocument(app, config);
+    SwaggerModule.setup("api", app, document, {
+      swaggerOptions: {
+        persistAuthorization: true, // 새로고침해도 인증 정보 유지
+      },
+    });
+  }
 
   await app.listen(port);
 }

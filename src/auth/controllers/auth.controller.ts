@@ -8,6 +8,13 @@ import {
   HttpCode,
   HttpStatus,
 } from "@nestjs/common";
+import {
+  ApiTags,
+  ApiOperation,
+  ApiResponse,
+  ApiBearerAuth,
+  ApiBody,
+} from "@nestjs/swagger";
 import type { Request } from "express";
 import { AuthService } from "../services/auth.service";
 import { LoginDto, RegisterDto, TokenResponseDto } from "../dto/auth.dto";
@@ -18,6 +25,7 @@ import type { UserPayload } from "../decorators/user.decorator";
 import { GitHubAuthGuard } from "../guards/github-auth.guard";
 import { KakaoAuthGuard } from "../guards/kakao-auth.guard";
 
+@ApiTags("auth")
 @Controller("auth")
 export class AuthController {
   constructor(private readonly authService: AuthService) {}
@@ -28,6 +36,13 @@ export class AuthController {
   @Public()
   @Post("login")
   @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: "이메일/비밀번호 로그인" })
+  @ApiResponse({
+    status: 200,
+    description: "로그인 성공",
+    type: TokenResponseDto,
+  })
+  @ApiResponse({ status: 401, description: "인증 실패" })
   async login(@Body() loginDto: LoginDto): Promise<TokenResponseDto> {
     return this.authService.login(loginDto);
   }
@@ -38,6 +53,13 @@ export class AuthController {
   @Public()
   @Post("register")
   @HttpCode(HttpStatus.CREATED)
+  @ApiOperation({ summary: "회원가입" })
+  @ApiResponse({
+    status: 201,
+    description: "회원가입 성공",
+    type: TokenResponseDto,
+  })
+  @ApiResponse({ status: 409, description: "이미 가입된 이메일" })
   async register(@Body() registerDto: RegisterDto): Promise<TokenResponseDto> {
     return this.authService.register(registerDto);
   }
@@ -48,6 +70,32 @@ export class AuthController {
   @Public()
   @Post("refresh")
   @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: "Access Token 재발급" })
+  @ApiBody({
+    schema: {
+      type: "object",
+      properties: {
+        refreshToken: {
+          type: "string",
+          example: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+        },
+      },
+    },
+  })
+  @ApiResponse({
+    status: 200,
+    description: "토큰 재발급 성공",
+    schema: {
+      type: "object",
+      properties: {
+        accessToken: {
+          type: "string",
+          example: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+        },
+      },
+    },
+  })
+  @ApiResponse({ status: 401, description: "유효하지 않은 토큰" })
   async refresh(@Body("refreshToken") refreshToken: string) {
     return this.authService.refresh(refreshToken);
   }
@@ -57,6 +105,24 @@ export class AuthController {
    */
   @Get("me")
   @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth("JWT-auth")
+  @ApiOperation({ summary: "현재 사용자 정보 조회" })
+  @ApiResponse({
+    status: 200,
+    description: "사용자 정보",
+    schema: {
+      type: "object",
+      properties: {
+        id: { type: "string", example: "clx1234567890" },
+        email: { type: "string", example: "user@example.com" },
+        username: { type: "string", example: "johndoe" },
+        name: { type: "string", example: "John Doe" },
+        avatar: { type: "string", nullable: true, example: "https://example.com/avatar.jpg" },
+        provider: { type: "string", enum: ["EMAIL", "GITHUB", "KAKAO"] },
+      },
+    },
+  })
+  @ApiResponse({ status: 401, description: "인증 필요" })
   getProfile(@User() user: UserPayload) {
     return user;
   }
