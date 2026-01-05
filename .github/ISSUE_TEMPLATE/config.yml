@@ -1,0 +1,5 @@
+blank_issues_enabled: false
+contact_links:
+  - name: 질문 및 문의
+    url: https://github.com/bakmyunjun/BE/discussions
+    about: 기술적인 질문이나 일반적인 문의사항은 Discussions를 이용해주세요.
