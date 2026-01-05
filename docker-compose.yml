@@ -1,40 +1,52 @@
-version: '3.8'
+version: "3.8"
+
+# Compose 프로젝트 이름 고정(컨테이너 이름 충돌 줄임)
+name: bakmyunjun
 
 services:
   postgres:
     image: postgres:16-alpine
-    container_name: bakmyunjun-postgres
     restart: unless-stopped
     environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
-      POSTGRES_DB: bakmyunjun
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_DB: ${POSTGRES_DB:-bakmyunjun}
+      TZ: ${TZ:-Asia/Seoul}
+
     ports:
-      - '5432:5432'
+      - "127.0.0.1:${POSTGRES_PORT:-5432}:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ['CMD-SHELL', 'pg_isready -U postgres']
+      test:
+        [
+          "CMD-SHELL",
+          "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-bakmyunjun} -h 127.0.0.1 -p 5432",
+        ]
       interval: 10s
       timeout: 5s
       retries: 5
+      start_period: 10s
     networks:
       - bakmyunjun-network
 
   redis:
     image: redis:7-alpine
-    container_name: bakmyunjun-redis
     restart: unless-stopped
+    environment:
+      TZ: ${TZ:-Asia/Seoul}
+    # 외부에 공개하지 않고 로컬에서만 접근 가능하게 바인딩한다
     ports:
-      - '6379:6379'
+      - "127.0.0.1:${REDIS_PORT:-6379}:6379"
     volumes:
       - redis_data:/data
-    command: redis-server --appendonly yes
+    command: ["redis-server", "--appendonly", "yes"]
     healthcheck:
-      test: ['CMD', 'redis-cli', 'ping']
+      test: ["CMD", "redis-cli", "ping"]
       interval: 10s
       timeout: 5s
       retries: 5
+      start_period: 5s
     networks:
       - bakmyunjun-network
 
@@ -45,4 +57,3 @@ volumes:
 networks:
   bakmyunjun-network:
     driver: bridge
-
