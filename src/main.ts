@@ -1,9 +1,9 @@
 import { NestFactory } from "@nestjs/core";
 import { ValidationPipe } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
+import helmet from "helmet";
 import { AppModule } from "./app.module";
 import type { Env } from "./config/env.schema";
-import { HttpExceptionFilter, AllExceptionsFilter } from "./common/filters/http-exception.filter";
 import { TransformInterceptor } from "./common/interceptors/transform.interceptor";
 
 async function bootstrap() {
@@ -12,12 +12,31 @@ async function bootstrap() {
   const port = configService.get("PORT", { infer: true });
   const nodeEnv = configService.get("NODE_ENV", { infer: true });
 
+  // Helmet 보안 헤더 설정
+  app.use(
+    helmet({
+      contentSecurityPolicy: {
+        directives: {
+          defaultSrc: ["'self'"],
+          styleSrc: ["'self'", "'unsafe-inline'"],
+          scriptSrc: ["'self'"],
+          imgSrc: ["'self'", "data:", "https:"],
+        },
+      },
+      crossOriginEmbedderPolicy: false,
+    })
+  );
+
   // CORS 설정
   app.enableCors({
     origin:
       nodeEnv === "production"
         ? process.env.FRONTEND_URL?.split(",") || []
-        : ["http://localhost:3000", "http://localhost:3001", "http://localhost:5173"],
+        : [
+            "http://localhost:3000",
+            "http://localhost:3001",
+            "http://localhost:5173",
+          ],
     credentials: true,
     methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     allowedHeaders: ["Content-Type", "Authorization", "X-Request-Id"],
@@ -32,14 +51,10 @@ async function bootstrap() {
       transformOptions: {
         enableImplicitConversion: true, // 타입 자동 변환 (string -> number 등)
       },
-    }),
+    })
   );
 
-  // 글로벌 예외 필터
-  app.useGlobalFilters(
-    new HttpExceptionFilter(),
-    new AllExceptionsFilter(),
-  );
+  // 글로벌 예외 필터는 AppModule에서 APP_FILTER로 등록됨
 
   // 글로벌 인터셉터 (응답 변환)
   app.useGlobalInterceptors(new TransformInterceptor());

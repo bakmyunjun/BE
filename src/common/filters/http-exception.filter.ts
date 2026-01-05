@@ -8,9 +8,12 @@ import {
 import { Response } from "express";
 import { ErrorResponseDto } from "../dto/response.dto";
 import { generateRequestId } from "../utils/request-id.util";
+import { LoggerService } from "../logger/logger.service";
 
 @Catch(HttpException)
 export class HttpExceptionFilter implements ExceptionFilter {
+  constructor(private readonly logger: LoggerService) {}
+
   catch(exception: HttpException, host: ArgumentsHost) {
     const ctx = host.switchToHttp();
     const response = ctx.getResponse<Response>();
@@ -69,12 +72,30 @@ export class HttpExceptionFilter implements ExceptionFilter {
       errorDetails,
     );
 
+    // 에러 로깅
+    this.logger.logHttpError(
+      requestId as string,
+      status,
+      errorCode,
+      errorMessage,
+      request.path,
+      request.method,
+      (request as { user?: { id?: string } }).user?.id,
+      {
+        errorDetails,
+        body: request.body,
+        query: request.query,
+      },
+    );
+
     response.status(status).json(errorResponse);
   }
 }
 
 @Catch()
 export class AllExceptionsFilter implements ExceptionFilter {
+  constructor(private readonly logger: LoggerService) {}
+
   catch(exception: unknown, host: ArgumentsHost) {
     const ctx = host.switchToHttp();
     const response = ctx.getResponse<Response>();
@@ -90,16 +111,48 @@ export class AllExceptionsFilter implements ExceptionFilter {
         ? exception.getStatus()
         : HttpStatus.INTERNAL_SERVER_ERROR;
 
-    const errorResponse = new ErrorResponseDto(
-      "INTERNAL_SERVER_ERROR",
+    const errorMessage =
       exception instanceof Error
         ? exception.message
-        : "예상치 못한 오류가 발생했습니다.",
+        : "예상치 못한 오류가 발생했습니다.";
+
+    const errorResponse = new ErrorResponseDto(
+      "INTERNAL_SERVER_ERROR",
+      errorMessage,
       requestId as string,
       process.env.NODE_ENV === "development"
         ? { stack: exception instanceof Error ? exception.stack : undefined }
         : undefined,
     );
+
+    // 에러 로깅
+    if (exception instanceof Error) {
+      this.logger.logError(
+        requestId as string,
+        exception,
+        "AllExceptionsFilter",
+        {
+          path: request.path,
+          method: request.method,
+          userId: (request as { user?: { id?: string } }).user?.id,
+          body: request.body,
+          query: request.query,
+        },
+      );
+    } else {
+      this.logger.logHttpError(
+        requestId as string,
+        status,
+        "INTERNAL_SERVER_ERROR",
+        errorMessage,
+        request.path,
+        request.method,
+        (request as { user?: { id?: string } }).user?.id,
+        {
+          error: String(exception),
+        },
+      );
+    }
 
     response.status(status).json(errorResponse);
   }
