@@ -10,6 +10,18 @@ async function bootstrap() {
   const app = await NestFactory.create(AppModule);
   const configService = app.get(ConfigService<Env, true>);
   const port = configService.get("PORT", { infer: true });
+  const nodeEnv = configService.get("NODE_ENV", { infer: true });
+
+  // CORS 설정
+  app.enableCors({
+    origin:
+      nodeEnv === "production"
+        ? process.env.FRONTEND_URL?.split(",") || []
+        : ["http://localhost:3000", "http://localhost:3001", "http://localhost:5173"],
+    credentials: true,
+    methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization", "X-Request-Id"],
+  });
 
   // 글로벌 ValidationPipe 설정
   app.useGlobalPipes(
