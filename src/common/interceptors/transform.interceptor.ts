@@ -8,11 +8,12 @@ import { Observable } from "rxjs";
 import { map } from "rxjs/operators";
 import { Request } from "express";
 import { SuccessResponseDto } from "../dto/response.dto";
-import { generateRequestId } from "../utils/request-id.util";
 
 /**
  * TransformInterceptor
  * 모든 성공 응답을 공통 응답 포맷으로 변환합니다.
+ * 
+ * 주의: requestId는 LoggingMiddleware에서 이미 설정되므로 여기서는 사용만 합니다.
  */
 @Injectable()
 export class TransformInterceptor<T>
@@ -24,13 +25,13 @@ export class TransformInterceptor<T>
   ): Observable<SuccessResponseDto<T>> {
     const request = context.switchToHttp().getRequest<Request>();
 
-    // Request ID 설정 (없으면 생성)
-    const requestId =
-      (request.headers["x-request-id"] as string) ||
-      request.id ||
-      generateRequestId();
-    // Request 객체에 id 속성 설정
-    request.id = requestId;
+    // Request ID는 Middleware에서 이미 설정되었으므로 사용만 함
+    const requestId = request.id;
+
+    if (!requestId) {
+      // Middleware가 실행되지 않은 경우를 대비한 fallback (일반적으로 발생하지 않음)
+      throw new Error("Request ID is not set. LoggingMiddleware must run first.");
+    }
 
     return next.handle().pipe(
       map((data) => {
@@ -45,7 +46,7 @@ export class TransformInterceptor<T>
         }
 
         // 일반 데이터는 SuccessResponseDto로 래핑
-        return new SuccessResponseDto<T>(data, requestId as string);
+        return new SuccessResponseDto<T>(data, requestId);
       })
     );
   }

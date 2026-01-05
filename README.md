@@ -1,98 +1,209 @@
-<p align="center">
-  <a href="http://nestjs.com/" target="blank"><img src="https://nestjs.com/img/logo-small.svg" width="120" alt="Nest Logo" /></a>
-</p>
+# Bakmyunjun Backend
 
-[circleci-image]: https://img.shields.io/circleci/build/github/nestjs/nest/master?token=abc123def456
-[circleci-url]: https://circleci.com/gh/nestjs/nest
+Bakmyunjun 백엔드 API 서버입니다.
 
-  <p align="center">A progressive <a href="http://nodejs.org" target="_blank">Node.js</a> framework for building efficient and scalable server-side applications.</p>
-    <p align="center">
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/v/@nestjs/core.svg" alt="NPM Version" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/l/@nestjs/core.svg" alt="Package License" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/dm/@nestjs/common.svg" alt="NPM Downloads" /></a>
-<a href="https://circleci.com/gh/nestjs/nest" target="_blank"><img src="https://img.shields.io/circleci/build/github/nestjs/nest/master" alt="CircleCI" /></a>
-<a href="https://discord.gg/G7Qnnhy" target="_blank"><img src="https://img.shields.io/badge/discord-online-brightgreen.svg" alt="Discord"/></a>
-<a href="https://opencollective.com/nest#backer" target="_blank"><img src="https://opencollective.com/nest/backers/badge.svg" alt="Backers on Open Collective" /></a>
-<a href="https://opencollective.com/nest#sponsor" target="_blank"><img src="https://opencollective.com/nest/sponsors/badge.svg" alt="Sponsors on Open Collective" /></a>
-  <a href="https://paypal.me/kamilmysliwiec" target="_blank"><img src="https://img.shields.io/badge/Donate-PayPal-ff3f59.svg" alt="Donate us"/></a>
-    <a href="https://opencollective.com/nest#sponsor"  target="_blank"><img src="https://img.shields.io/badge/Support%20us-Open%20Collective-41B883.svg" alt="Support us"></a>
-  <a href="https://twitter.com/nestframework" target="_blank"><img src="https://img.shields.io/twitter/follow/nestframework.svg?style=social&label=Follow" alt="Follow us on Twitter"></a>
-</p>
-  <!--[![Backers on Open Collective](https://opencollective.com/nest/backers/badge.svg)](https://opencollective.com/nest#backer)
-  [![Sponsors on Open Collective](https://opencollective.com/nest/sponsors/badge.svg)](https://opencollective.com/nest#sponsor)-->
+## 기술 스택
 
-## Description
+- **Framework**: NestJS
+- **Language**: TypeScript
+- **Database**: PostgreSQL (Prisma ORM)
+- **Cache**: Redis
+- **Authentication**: JWT, OAuth (GitHub, Kakao)
+- **Documentation**: Swagger (OpenAPI)
 
-[Nest](https://github.com/nestjs/nest) framework TypeScript starter repository.
+## 사전 요구사항
 
-## Project setup
+- Node.js 20 이상
+- pnpm
+- Docker & Docker Compose (로컬 개발용)
+
+## 설치 및 실행
+
+### 1. 저장소 클론 및 의존성 설치
 
 ```bash
-$ pnpm install
+git clone <repository-url>
+cd BE
+pnpm install
 ```
 
-## Compile and run the project
+### 2. 환경 변수 설정
+
+`.env.example` 파일을 참고하여 `.env` 파일을 생성하세요:
 
 ```bash
-# development
-$ pnpm run start
-
-# watch mode
-$ pnpm run start:dev
-
-# production mode
-$ pnpm run start:prod
+cp .env.example .env
+# 또는
+cp .env.development.example .env
 ```
 
-## Run tests
+필수 환경 변수:
+- `DATABASE_URL`: PostgreSQL 연결 URL
+- `JWT_ACCESS_SECRET`: JWT Access Token 비밀키 (최소 32자)
+- `JWT_REFRESH_SECRET`: JWT Refresh Token 비밀키 (최소 32자)
+
+### 3. 데이터베이스 설정
+
+#### 로컬 개발 (Docker Compose 사용)
 
 ```bash
-# unit tests
-$ pnpm run test
+# PostgreSQL 및 Redis 시작
+pnpm docker:up
 
-# e2e tests
-$ pnpm run test:e2e
+# 데이터베이스 마이그레이션 실행
+pnpm prisma:migrate:dev
 
-# test coverage
-$ pnpm run test:cov
+# (선택) 시드 데이터 생성
+pnpm prisma:seed
 ```
 
-## Deployment
+#### 수동 설정
 
-When you're ready to deploy your NestJS application to production, there are some key steps you can take to ensure it runs as efficiently as possible. Check out the [deployment documentation](https://docs.nestjs.com/deployment) for more information.
+PostgreSQL과 Redis를 직접 설치한 경우, `.env` 파일에 연결 정보를 설정하세요.
 
-If you are looking for a cloud-based platform to deploy your NestJS application, check out [Mau](https://mau.nestjs.com), our official platform for deploying NestJS applications on AWS. Mau makes deployment straightforward and fast, requiring just a few simple steps:
+### 4. 애플리케이션 실행
 
 ```bash
-$ pnpm install -g @nestjs/mau
-$ mau deploy
+# 개발 모드 (watch mode)
+pnpm start:dev
+
+# 프로덕션 모드
+pnpm build
+pnpm start:prod
 ```
 
-With Mau, you can deploy your application in just a few clicks, allowing you to focus on building features rather than managing infrastructure.
+서버가 실행되면 `http://localhost:3000`에서 접근할 수 있습니다.
 
-## Resources
+## API 문서
 
-Check out a few resources that may come in handy when working with NestJS:
+개발 환경에서 Swagger UI를 통해 API 문서를 확인할 수 있습니다:
 
-- Visit the [NestJS Documentation](https://docs.nestjs.com) to learn more about the framework.
-- For questions and support, please visit our [Discord channel](https://discord.gg/G7Qnnhy).
-- To dive deeper and get more hands-on experience, check out our official video [courses](https://courses.nestjs.com/).
-- Deploy your application to AWS with the help of [NestJS Mau](https://mau.nestjs.com) in just a few clicks.
-- Visualize your application graph and interact with the NestJS application in real-time using [NestJS Devtools](https://devtools.nestjs.com).
-- Need help with your project (part-time to full-time)? Check out our official [enterprise support](https://enterprise.nestjs.com).
-- To stay in the loop and get updates, follow us on [X](https://x.com/nestframework) and [LinkedIn](https://linkedin.com/company/nestjs).
-- Looking for a job, or have a job to offer? Check out our official [Jobs board](https://jobs.nestjs.com).
+```
+http://localhost:3000/api
+```
 
-## Support
+## 주요 명령어
 
-Nest is an MIT-licensed open source project. It can grow thanks to the sponsors and support by the amazing backers. If you'd like to join them, please [read more here](https://docs.nestjs.com/support).
+### 개발
 
-## Stay in touch
+```bash
+# 개발 서버 실행 (watch mode)
+pnpm start:dev
 
-- Author - [Kamil Myśliwiec](https://twitter.com/kammysliwiec)
-- Website - [https://nestjs.com](https://nestjs.com/)
-- Twitter - [@nestframework](https://twitter.com/nestframework)
+# 빌드
+pnpm build
 
-## License
+# 린트
+pnpm lint
 
-Nest is [MIT licensed](https://github.com/nestjs/nest/blob/master/LICENSE).
+# 포맷팅
+pnpm format
+```
+
+### 데이터베이스
+
+```bash
+# 마이그레이션 생성 및 적용
+pnpm prisma:migrate:dev
+
+# Prisma Studio 실행 (DB GUI)
+pnpm prisma:studio
+
+# Prisma Client 재생성
+pnpm prisma:generate
+```
+
+### 테스트
+
+```bash
+# 단위 테스트
+pnpm test
+
+# E2E 테스트
+pnpm test:e2e
+
+# 테스트 커버리지
+pnpm test:cov
+```
+
+### Docker
+
+```bash
+# 컨테이너 시작
+pnpm docker:up
+
+# 컨테이너 중지
+pnpm docker:down
+
+# 로그 확인
+pnpm docker:logs
+```
+
+### Postman
+
+```bash
+# Postman 컬렉션 자동 생성
+pnpm postman:generate
+```
+
+## 프로덕션 배포
+
+### Docker Compose 사용
+
+```bash
+# 환경 변수 설정
+cp .env.example .env.production
+# .env.production 파일 편집
+
+# 프로덕션 빌드 및 실행
+docker-compose -f docker-compose.prod.yml up -d
+```
+
+### Dockerfile 사용
+
+```bash
+# 이미지 빌드
+docker build -t bakmyunjun-backend .
+
+# 컨테이너 실행
+docker run -p 3000:3000 --env-file .env.production bakmyunjun-backend
+```
+
+## 프로젝트 구조
+
+```
+src/
+├── auth/              # 인증 관련 모듈
+│   ├── controllers/   # 인증 컨트롤러
+│   ├── services/      # 인증 서비스
+│   ├── strategies/    # Passport 전략 (JWT, GitHub, Kakao)
+│   ├── guards/        # 인증 가드
+│   └── decorators/    # 커스텀 데코레이터 (@User, @Public)
+├── common/            # 공통 모듈
+│   ├── dto/           # 공통 DTO
+│   ├── filters/       # 예외 필터
+│   ├── interceptors/  # 인터셉터
+│   ├── middleware/    # 미들웨어
+│   └── logger/        # 로깅 서비스
+├── config/            # 설정 모듈
+├── database/          # 데이터베이스 모듈 (Prisma)
+└── main.ts            # 애플리케이션 진입점
+```
+
+## 환경 변수
+
+자세한 환경 변수 목록은 `.env.example` 파일을 참고하세요.
+
+주요 환경 변수:
+- `NODE_ENV`: 실행 환경 (development, production)
+- `PORT`: 서버 포트 (기본값: 3000)
+- `DATABASE_URL`: PostgreSQL 연결 URL
+- `REDIS_URL`: Redis 연결 URL
+- `JWT_ACCESS_SECRET`: JWT Access Token 비밀키
+- `JWT_REFRESH_SECRET`: JWT Refresh Token 비밀키
+- `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET`: GitHub OAuth 설정
+- `KAKAO_CLIENT_ID`, `KAKAO_CLIENT_SECRET`: Kakao OAuth 설정
+
+## 라이선스
+
+MIT
