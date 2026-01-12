@@ -8,6 +8,7 @@ import {
   Res,
   HttpCode,
   HttpStatus,
+  InternalServerErrorException,
 } from "@nestjs/common";
 import {
   ApiTags,
@@ -27,13 +28,15 @@ import { GitHubAuthGuard } from "../guards/github-auth.guard";
 import { KakaoAuthGuard } from "../guards/kakao-auth.guard";
 import type { Env } from "../../config/env.schema";
 import { ExchangeCodeDto } from "../dto/auth.dto";
+import { LoggerService } from "../../common/logger/logger.service";
 
 @ApiTags("auth")
 @Controller("auth")
 export class AuthController {
   constructor(
     private readonly authService: AuthService,
-    private readonly configService: ConfigService<Env, true>
+    private readonly configService: ConfigService<Env, true>,
+    private readonly logger: LoggerService
   ) {}
 
   /**
@@ -121,20 +124,56 @@ export class AuthController {
       user: UserPayload;
     };
 
-    const redirectUrl =
-      this.configService.get("OAUTH_REDIRECT_URL", { infer: true }) ||
-      "http://localhost:3000";
+    // OAUTH_REDIRECT_URL 필수 체크
+    const redirectUrl = this.configService.get("OAUTH_REDIRECT_URL", {
+      infer: true,
+    });
+    if (!redirectUrl) {
+      this.logger.logError(
+        req.id as string,
+        new Error("OAUTH_REDIRECT_URL is not configured"),
+        "AuthController.githubCallback",
+        {
+          userId: result.user.id.toString(),
+        }
+      );
+      throw new InternalServerErrorException(
+        "OAuth 리다이렉트 URL이 설정되지 않았습니다."
+      );
+    }
 
-    // Authorization code 생성
-    const code = await this.authService.generateAuthorizationCode(
-      result.user.id
-    );
+    try {
+      // Authorization code 생성
+      const code = await this.authService.generateAuthorizationCode(
+        result.user.id
+      );
 
-    // Authorization code를 쿼리 파라미터로 프론트엔드에 전달
-    const url = new URL(redirectUrl);
-    url.searchParams.set("code", code);
+      // Authorization code를 쿼리 파라미터로 프론트엔드에 전달
+      const url = new URL(redirectUrl);
+      url.searchParams.set("code", code);
 
-    res.redirect(url.toString());
+      res.redirect(url.toString());
+    } catch (error) {
+      this.logger.logError(
+        req.id as string,
+        error instanceof Error ? error : new Error(String(error)),
+        "AuthController.githubCallback",
+        {
+          userId: result.user.id.toString(),
+          redirectUrl,
+        }
+      );
+
+      if (error instanceof TypeError && error.message.includes("Invalid URL")) {
+        throw new InternalServerErrorException(
+          "잘못된 리다이렉트 URL 형식입니다."
+        );
+      }
+
+      throw new InternalServerErrorException(
+        "OAuth 콜백 처리 중 오류가 발생했습니다."
+      );
+    }
   }
 
   /**
@@ -158,20 +197,56 @@ export class AuthController {
       user: UserPayload;
     };
 
-    const redirectUrl =
-      this.configService.get("OAUTH_REDIRECT_URL", { infer: true }) ||
-      "http://localhost:3000";
+    // OAUTH_REDIRECT_URL 필수 체크
+    const redirectUrl = this.configService.get("OAUTH_REDIRECT_URL", {
+      infer: true,
+    });
+    if (!redirectUrl) {
+      this.logger.logError(
+        req.id as string,
+        new Error("OAUTH_REDIRECT_URL is not configured"),
+        "AuthController.kakaoCallback",
+        {
+          userId: result.user.id.toString(),
+        }
+      );
+      throw new InternalServerErrorException(
+        "OAuth 리다이렉트 URL이 설정되지 않았습니다."
+      );
+    }
 
-    // Authorization code 생성
-    const code = await this.authService.generateAuthorizationCode(
-      result.user.id
-    );
+    try {
+      // Authorization code 생성
+      const code = await this.authService.generateAuthorizationCode(
+        result.user.id
+      );
 
-    // Authorization code를 쿼리 파라미터로 프론트엔드에 전달
-    const url = new URL(redirectUrl);
-    url.searchParams.set("code", code);
+      // Authorization code를 쿼리 파라미터로 프론트엔드에 전달
+      const url = new URL(redirectUrl);
+      url.searchParams.set("code", code);
 
-    res.redirect(url.toString());
+      res.redirect(url.toString());
+    } catch (error) {
+      this.logger.logError(
+        req.id as string,
+        error instanceof Error ? error : new Error(String(error)),
+        "AuthController.kakaoCallback",
+        {
+          userId: result.user.id.toString(),
+          redirectUrl,
+        }
+      );
+
+      if (error instanceof TypeError && error.message.includes("Invalid URL")) {
+        throw new InternalServerErrorException(
+          "잘못된 리다이렉트 URL 형식입니다."
+        );
+      }
+
+      throw new InternalServerErrorException(
+        "OAuth 콜백 처리 중 오류가 발생했습니다."
+      );
+    }
   }
 
   /**
