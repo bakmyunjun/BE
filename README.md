@@ -38,6 +38,7 @@ cp .env.development.example .env
 ```
 
 필수 환경 변수:
+
 - `DATABASE_URL`: PostgreSQL 연결 URL
 - `JWT_ACCESS_SECRET`: JWT Access Token 비밀키 (최소 32자)
 - `JWT_REFRESH_SECRET`: JWT Refresh Token 비밀키 (최소 32자)
@@ -148,6 +149,26 @@ pnpm postman:generate
 
 ## 프로덕션 배포
 
+### EC2 배포 (권장)
+
+EC2에 배포하는 방법은 [docs/DEPLOYMENT.md](./docs/DEPLOYMENT.md)를 참고하세요.
+
+주요 단계:
+1. EC2 인스턴스 설정 (Ubuntu 22.04 LTS)
+2. Node.js, pnpm, PostgreSQL, Redis 설치
+3. 애플리케이션 클론 및 환경 변수 설정
+4. 데이터베이스 마이그레이션 실행
+5. PM2로 애플리케이션 실행
+6. Nginx 리버스 프록시 설정
+7. SSL/HTTPS 설정 (Certbot)
+
+### 배포 스크립트 사용
+
+```bash
+# 배포 스크립트 실행
+./scripts/deploy.sh
+```
+
 ### Docker Compose 사용
 
 ```bash
@@ -194,15 +215,29 @@ src/
 
 자세한 환경 변수 목록은 `.env.example` 파일을 참고하세요.
 
-주요 환경 변수:
-- `NODE_ENV`: 실행 환경 (development, production)
+### 필수 환경 변수
+
+- `NODE_ENV`: 실행 환경 (development, production, test)
 - `PORT`: 서버 포트 (기본값: 3000)
 - `DATABASE_URL`: PostgreSQL 연결 URL
+- `JWT_ACCESS_SECRET`: JWT Access Token 비밀키 (최소 1자)
+- `JWT_REFRESH_SECRET`: JWT Refresh Token 비밀키 (최소 1자)
+
+### 선택적 환경 변수
+
 - `REDIS_URL`: Redis 연결 URL
-- `JWT_ACCESS_SECRET`: JWT Access Token 비밀키
-- `JWT_REFRESH_SECRET`: JWT Refresh Token 비밀키
-- `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET`: GitHub OAuth 설정
-- `KAKAO_CLIENT_ID`, `KAKAO_CLIENT_SECRET`: Kakao OAuth 설정
+
+### OAuth 환경 변수 (OAuth 로그인 사용 시 필수)
+
+- `GITHUB_CLIENT_ID`: GitHub OAuth App Client ID
+- `GITHUB_CLIENT_SECRET`: GitHub OAuth App Client Secret
+- `GITHUB_CALLBACK_URL`: GitHub OAuth 콜백 URL (예: `https://api.example.com/auth/github/callback`)
+- `KAKAO_CLIENT_ID`: Kakao OAuth App Client ID (REST API Key)
+- `KAKAO_CLIENT_SECRET`: Kakao OAuth App Client Secret
+- `KAKAO_CALLBACK_URL`: Kakao OAuth 콜백 URL (예: `https://api.example.com/auth/kakao/callback`)
+- `OAUTH_REDIRECT_URL`: OAuth 인증 후 리다이렉트할 프론트엔드 URL (예: `https://app.example.com/auth/callback`)
+
+> **주의**: 프로덕션 환경에서는 `OAUTH_REDIRECT_URL`이 반드시 설정되어야 합니다. 설정되지 않으면 OAuth 콜백에서 에러가 발생합니다.
 
 ## 라이선스
 

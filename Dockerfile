@@ -27,9 +27,9 @@ WORKDIR /app
 # pnpm 설치
 RUN corepack enable && corepack prepare pnpm@latest --activate
 
-# 프로덕션 의존성만 설치
+# 프로덕션 의존성만 설치 (prepare 스크립트 건너뛰기 - husky는 devDependency이므로)
 COPY package.json pnpm-lock.yaml ./
-RUN pnpm install --frozen-lockfile --prod
+RUN pnpm install --frozen-lockfile --prod --ignore-scripts
 
 # 빌드된 파일 복사
 COPY --from=builder /app/dist ./dist
