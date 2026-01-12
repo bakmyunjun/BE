@@ -26,6 +26,7 @@ import type { UserPayload } from "../decorators/user.decorator";
 import { GitHubAuthGuard } from "../guards/github-auth.guard";
 import { KakaoAuthGuard } from "../guards/kakao-auth.guard";
 import type { Env } from "../../config/env.schema";
+import { ExchangeCodeDto } from "../dto/auth.dto";
 
 @ApiTags("auth")
 @Controller("auth")
@@ -180,32 +181,13 @@ export class AuthController {
   @Post("oauth/token")
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: "OAuth Authorization Code로 토큰 교환" })
-  @ApiBody({
-    schema: {
-      type: "object",
-      properties: {
-        code: {
-          type: "string",
-          example: "abc123def456...",
-        },
-      },
-      required: ["code"],
-    },
-  })
+  @ApiBody({ type: ExchangeCodeDto })
   @ApiResponse({
     status: 200,
     description: "토큰 교환 성공",
     schema: {
       type: "object",
       properties: {
-        accessToken: {
-          type: "string",
-          example: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
-        },
-        refreshToken: {
-          type: "string",
-          example: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
-        },
         user: {
           type: "object",
           properties: {
@@ -214,12 +196,25 @@ export class AuthController {
             nickname: { type: "string", nullable: true, example: "johndoe" },
           },
         },
+        tokens: {
+          type: "object",
+          properties: {
+            accessToken: {
+              type: "string",
+              example: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+            },
+            refreshToken: {
+              type: "string",
+              example: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+            },
+          },
+        },
       },
     },
   })
   @ApiResponse({ status: 400, description: "유효하지 않은 인증 코드" })
-  async exchangeCode(@Body("code") code: string) {
-    return this.authService.exchangeAuthorizationCode(code);
+  async exchangeCode(@Body() dto: ExchangeCodeDto) {
+    return this.authService.exchangeAuthorizationCode(dto.code);
   }
 }
 
