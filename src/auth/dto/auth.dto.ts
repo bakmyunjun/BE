@@ -1,4 +1,17 @@
 import { ApiProperty, ApiPropertyOptional } from "@nestjs/swagger";
+import { IsString } from "class-validator";
+
+/**
+ * OAuth 토큰 교환 요청 DTO
+ */
+export class ExchangeCodeDto {
+  @ApiProperty({
+    description: "OAuth Authorization Code",
+    example: "abc123def456...",
+  })
+  @IsString()
+  code: string;
+}
 
 /**
  * 토큰 응답 DTO

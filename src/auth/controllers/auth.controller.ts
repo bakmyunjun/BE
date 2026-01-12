@@ -92,7 +92,11 @@ export class AuthController {
   })
   @ApiResponse({ status: 401, description: "인증 필요" })
   getProfile(@User() user: UserPayload) {
-    return user;
+    return {
+      id: user.id.toString(),
+      email: user.email,
+      nickname: user.nickname,
+    };
   }
 
   /**
@@ -114,17 +118,20 @@ export class AuthController {
   async githubCallback(@Req() req: Request, @Res() res: Response) {
     const result = req.user as {
       user: UserPayload;
-      tokens: { accessToken: string; refreshToken: string };
     };
 
     const redirectUrl =
       this.configService.get("OAUTH_REDIRECT_URL", { infer: true }) ||
       "http://localhost:3000";
 
-    // 토큰을 쿼리 파라미터로 프론트엔드에 전달
+    // Authorization code 생성
+    const code = await this.authService.generateAuthorizationCode(
+      result.user.id
+    );
+
+    // Authorization code를 쿼리 파라미터로 프론트엔드에 전달
     const url = new URL(redirectUrl);
-    url.searchParams.set("accessToken", result.tokens.accessToken);
-    url.searchParams.set("refreshToken", result.tokens.refreshToken);
+    url.searchParams.set("code", code);
 
     res.redirect(url.toString());
   }
@@ -148,19 +155,71 @@ export class AuthController {
   async kakaoCallback(@Req() req: Request, @Res() res: Response) {
     const result = req.user as {
       user: UserPayload;
-      tokens: { accessToken: string; refreshToken: string };
     };
 
     const redirectUrl =
       this.configService.get("OAUTH_REDIRECT_URL", { infer: true }) ||
       "http://localhost:3000";
 
-    // 토큰을 쿼리 파라미터로 프론트엔드에 전달
+    // Authorization code 생성
+    const code = await this.authService.generateAuthorizationCode(
+      result.user.id
+    );
+
+    // Authorization code를 쿼리 파라미터로 프론트엔드에 전달
     const url = new URL(redirectUrl);
-    url.searchParams.set("accessToken", result.tokens.accessToken);
-    url.searchParams.set("refreshToken", result.tokens.refreshToken);
+    url.searchParams.set("code", code);
 
     res.redirect(url.toString());
+  }
+
+  /**
+   * OAuth Authorization Code로 토큰 교환
+   */
+  @Public()
+  @Post("oauth/token")
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: "OAuth Authorization Code로 토큰 교환" })
+  @ApiBody({
+    schema: {
+      type: "object",
+      properties: {
+        code: {
+          type: "string",
+          example: "abc123def456...",
+        },
+      },
+      required: ["code"],
+    },
+  })
+  @ApiResponse({
+    status: 200,
+    description: "토큰 교환 성공",
+    schema: {
+      type: "object",
+      properties: {
+        accessToken: {
+          type: "string",
+          example: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+        },
+        refreshToken: {
+          type: "string",
+          example: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+        },
+        user: {
+          type: "object",
+          properties: {
+            id: { type: "string", format: "bigint", example: "1" },
+            email: { type: "string", nullable: true, example: "user@example.com" },
+            nickname: { type: "string", nullable: true, example: "johndoe" },
+          },
+        },
+      },
+    },
+  })
+  @ApiResponse({ status: 400, description: "유효하지 않은 인증 코드" })
+  async exchangeCode(@Body("code") code: string) {
+    return this.authService.exchangeAuthorizationCode(code);
   }
 }
 
