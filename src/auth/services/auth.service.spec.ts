@@ -91,7 +91,7 @@ describe("AuthService", () => {
       mockJwtService.signAsync.mockResolvedValue("mock-token");
     });
 
-    it("기존 OAuth 계정이 있으면 사용자 정보를 업데이트하고 토큰을 반환해야 함", async () => {
+    it("기존 OAuth 계정이 있으면 사용자 정보를 업데이트해야 함", async () => {
       const mockUser = {
         id: mockUserId,
         email: mockEmail,
@@ -112,7 +112,6 @@ describe("AuthService", () => {
       );
       mockPrismaService.user.update.mockResolvedValue(mockUser);
       mockPrismaService.oAuthAccount.update.mockResolvedValue(mockOAuthAccount);
-      mockPrismaService.refreshToken.create.mockResolvedValue({});
 
       const result = await service.findOrCreateOAuthUser(
         "GITHUB",
@@ -122,9 +121,9 @@ describe("AuthService", () => {
       );
 
       expect(result).toHaveProperty("user");
-      expect(result).toHaveProperty("tokens");
-      expect(result.tokens).toHaveProperty("accessToken");
-      expect(result.tokens).toHaveProperty("refreshToken");
+      expect(result.user).toHaveProperty("id");
+      expect(result.user).toHaveProperty("email");
+      expect(result.user).toHaveProperty("nickname");
       expect(mockPrismaService.oAuthAccount.findUnique).toHaveBeenCalledWith({
         where: {
           provider_providerUserId: {
@@ -156,7 +155,6 @@ describe("AuthService", () => {
         providerEmail: mockEmail,
         user: mockUser,
       });
-      mockPrismaService.refreshToken.create.mockResolvedValue({});
 
       const result = await service.findOrCreateOAuthUser(
         "GITHUB",
@@ -166,7 +164,7 @@ describe("AuthService", () => {
       );
 
       expect(result).toHaveProperty("user");
-      expect(result).toHaveProperty("tokens");
+      expect(result.user).toHaveProperty("id");
       expect(mockPrismaService.user.findUnique).toHaveBeenCalledWith({
         where: { email: mockEmail },
       });
@@ -183,7 +181,6 @@ describe("AuthService", () => {
       mockPrismaService.oAuthAccount.findUnique.mockResolvedValue(null);
       mockPrismaService.user.findUnique.mockResolvedValue(null);
       mockPrismaService.user.create.mockResolvedValue(mockUser);
-      mockPrismaService.refreshToken.create.mockResolvedValue({});
 
       const result = await service.findOrCreateOAuthUser(
         "GITHUB",
@@ -193,7 +190,7 @@ describe("AuthService", () => {
       );
 
       expect(result).toHaveProperty("user");
-      expect(result).toHaveProperty("tokens");
+      expect(result.user).toHaveProperty("id");
       expect(mockPrismaService.user.create).toHaveBeenCalledWith({
         data: {
           email: mockEmail,
@@ -219,7 +216,6 @@ describe("AuthService", () => {
       mockPrismaService.oAuthAccount.findUnique.mockResolvedValue(null);
       mockPrismaService.user.findUnique.mockResolvedValue(null);
       mockPrismaService.user.create.mockResolvedValue(mockUser);
-      mockPrismaService.refreshToken.create.mockResolvedValue({});
 
       const result = await service.findOrCreateOAuthUser(
         "KAKAO",
@@ -229,7 +225,7 @@ describe("AuthService", () => {
       );
 
       expect(result).toHaveProperty("user");
-      expect(result).toHaveProperty("tokens");
+      expect(result.user).toHaveProperty("id");
       expect(mockPrismaService.user.create).toHaveBeenCalled();
     });
   });
