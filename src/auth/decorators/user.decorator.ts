@@ -1,12 +1,9 @@
 import { createParamDecorator, ExecutionContext } from "@nestjs/common";
 
 export type UserPayload = {
-  id: string;
+  id: bigint;
   email: string | null;
-  username: string | null;
-  name: string | null;
-  avatar: string | null;
-  provider: "EMAIL" | "GITHUB" | "KAKAO";
+  nickname: string | null;
 };
 
 /**
