@@ -9,21 +9,21 @@ import { AuthService } from "../services/auth.service";
 export class KakaoStrategy extends PassportStrategy(Strategy, "kakao") {
   constructor(
     private readonly configService: ConfigService<Env, true>,
-    private readonly authService: AuthService,
+    private readonly authService: AuthService
   ) {
+    const callbackURL =
+      configService.get("KAKAO_CALLBACK_URL", { infer: true }) ||
+      "/auth/kakao/callback";
+
     super({
       clientID: configService.get("KAKAO_CLIENT_ID", { infer: true }) || "",
       clientSecret:
         configService.get("KAKAO_CLIENT_SECRET", { infer: true }) || "",
-      callbackURL: "/auth/kakao/callback",
+      callbackURL,
     });
   }
 
-  async validate(
-    accessToken: string,
-    refreshToken: string,
-    profile: Profile,
-  ) {
+  async validate(accessToken: string, refreshToken: string, profile: Profile) {
     const { id, username, displayName, _json } = profile;
     const kakaoAccount = _json?.kakao_account;
 
@@ -31,12 +31,9 @@ export class KakaoStrategy extends PassportStrategy(Strategy, "kakao") {
       "KAKAO",
       id.toString(),
       kakaoAccount?.email || null,
-      username || kakaoAccount?.profile?.nickname || null,
-      displayName || kakaoAccount?.profile?.nickname || null,
-      kakaoAccount?.profile?.profile_image_url || null,
+      displayName || kakaoAccount?.profile?.nickname || username || null
     );
 
     return result;
   }
 }
-

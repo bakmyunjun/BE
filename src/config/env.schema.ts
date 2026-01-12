@@ -11,8 +11,11 @@ const envSchema = z.object({
   JWT_REFRESH_SECRET: z.string().min(1),
   GITHUB_CLIENT_ID: z.string().optional(),
   GITHUB_CLIENT_SECRET: z.string().optional(),
+  GITHUB_CALLBACK_URL: z.string().optional(),
   KAKAO_CLIENT_ID: z.string().optional(),
   KAKAO_CLIENT_SECRET: z.string().optional(),
+  KAKAO_CALLBACK_URL: z.string().optional(),
+  OAUTH_REDIRECT_URL: z.string().url().optional(),
 });
 
 export type Env = z.infer<typeof envSchema>;
