@@ -21,6 +21,7 @@ describe("AuthService", () => {
       findUnique: jest.fn(),
       create: jest.fn(),
       update: jest.fn(),
+      upsert: jest.fn(),
     },
     refreshToken: {
       create: jest.fn(),
@@ -147,7 +148,7 @@ describe("AuthService", () => {
 
       mockPrismaService.oAuthAccount.findUnique.mockResolvedValue(null);
       mockPrismaService.user.findUnique.mockResolvedValue(mockUser);
-      mockPrismaService.oAuthAccount.create.mockResolvedValue({
+      mockPrismaService.oAuthAccount.upsert.mockResolvedValue({
         id: BigInt(1),
         userId: mockUserId,
         provider: "GITHUB",
@@ -168,7 +169,24 @@ describe("AuthService", () => {
       expect(mockPrismaService.user.findUnique).toHaveBeenCalledWith({
         where: { email: mockEmail },
       });
-      expect(mockPrismaService.oAuthAccount.create).toHaveBeenCalled();
+      expect(mockPrismaService.oAuthAccount.upsert).toHaveBeenCalledWith({
+        where: {
+          provider_providerUserId: {
+            provider: "GITHUB",
+            providerUserId: mockProviderId,
+          },
+        },
+        update: {
+          providerEmail: mockEmail,
+        },
+        create: {
+          userId: mockUserId,
+          provider: "GITHUB",
+          providerUserId: mockProviderId,
+          providerEmail: mockEmail,
+        },
+        include: { user: true },
+      });
     });
 
     it("OAuth 계정이 없고 새 사용자를 생성해야 함", async () => {
