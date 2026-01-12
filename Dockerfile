@@ -24,6 +24,9 @@ FROM node:20-alpine AS production
 
 WORKDIR /app
 
+# OpenSSL 및 기타 필수 라이브러리 설치 (Prisma Client를 위해 필요)
+RUN apk add --no-cache openssl1.1-compat libc6-compat
+
 # pnpm 설치
 RUN corepack enable && corepack prepare pnpm@latest --activate
 
