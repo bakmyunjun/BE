@@ -1,14 +1,12 @@
 import {
   Injectable,
   UnauthorizedException,
-  ConflictException,
 } from "@nestjs/common";
 import { JwtService } from "@nestjs/jwt";
 import { ConfigService } from "@nestjs/config";
-import * as bcrypt from "bcrypt";
+import { createHash } from "node:crypto";
 import { PrismaService } from "../../database/prisma.service";
 import type { Env } from "../../config/env.schema";
-import { LoginDto, RegisterDto, TokenResponseDto } from "../dto/auth.dto";
 import type { UserPayload } from "../decorators/user.decorator";
 
 @Injectable()
@@ -20,78 +18,6 @@ export class AuthService {
   ) {}
 
   /**
-   * 이메일/비밀번호 로그인
-   */
-  async login(loginDto: LoginDto): Promise<TokenResponseDto> {
-    const user = await this.prisma.user.findUnique({
-      where: { email: loginDto.email },
-    });
-
-    if (!user || user.provider !== "EMAIL") {
-      throw new UnauthorizedException(
-        "이메일 또는 비밀번호가 올바르지 않습니다."
-      );
-    }
-
-    // 비밀번호 확인 (현재는 EMAIL provider만 지원)
-    // 실제로는 비밀번호 필드가 필요하지만, 지금은 OAuth 위주로 진행
-
-    const tokens = await this.generateTokens(user.id, user.email || undefined);
-    await this.updateRefreshToken(user.id, tokens.refreshToken);
-
-    return {
-      ...tokens,
-      user: {
-        id: user.id,
-        email: user.email,
-        username: user.username,
-        name: user.name,
-        avatar: user.avatar,
-      },
-    };
-  }
-
-  /**
-   * 회원가입
-   */
-  async register(registerDto: RegisterDto): Promise<TokenResponseDto> {
-    const existingUser = await this.prisma.user.findUnique({
-      where: { email: registerDto.email },
-    });
-
-    if (existingUser) {
-      throw new ConflictException("이미 가입된 이메일입니다.");
-    }
-
-    // 비밀번호 해싱
-    const hashedPassword = await bcrypt.hash(registerDto.password, 10);
-
-    const user = await this.prisma.user.create({
-      data: {
-        email: registerDto.email,
-        username: registerDto.username,
-        name: registerDto.name,
-        provider: "EMAIL",
-        // 실제로는 password 필드가 필요하지만, 지금은 OAuth 위주
-      },
-    });
-
-    const tokens = await this.generateTokens(user.id, user.email || undefined);
-    await this.updateRefreshToken(user.id, tokens.refreshToken);
-
-    return {
-      ...tokens,
-      user: {
-        id: user.id,
-        email: user.email,
-        username: user.username,
-        name: user.name,
-        avatar: user.avatar,
-      },
-    };
-  }
-
-  /**
    * Refresh Token으로 Access Token 재발급
    */
   async refresh(refreshToken: string): Promise<{ accessToken: string }> {
@@ -100,17 +26,31 @@ export class AuthService {
         secret: this.configService.get("JWT_REFRESH_SECRET", { infer: true }),
       });
 
-      const user = await this.prisma.user.findUnique({
-        where: { id: payload.sub },
+      const tokenHash = this.hashToken(refreshToken);
+      const userId = BigInt(payload.sub);
+
+      // RefreshToken 테이블에서 토큰 확인
+      const tokenRecord = await this.prisma.refreshToken.findFirst({
+        where: {
+          userId,
+          tokenHash,
+          revokedAt: null,
+          expiresAt: {
+            gt: new Date(),
+          },
+        },
+        include: {
+          user: true,
+        },
       });
 
-      if (!user || user.refreshToken !== refreshToken) {
+      if (!tokenRecord) {
         throw new UnauthorizedException("유효하지 않은 토큰입니다.");
       }
 
       const accessToken = await this.generateAccessToken(
-        user.id,
-        user.email || undefined
+        tokenRecord.user.id,
+        tokenRecord.user.email || undefined
       );
 
       return { accessToken };
@@ -123,10 +63,10 @@ export class AuthService {
    * Access Token 생성
    */
   private async generateAccessToken(
-    userId: string,
+    userId: bigint,
     email?: string
   ): Promise<string> {
-    const payload = { sub: userId, email };
+    const payload = { sub: userId.toString(), email };
     return this.jwtService.signAsync(payload, {
       secret: this.configService.get("JWT_ACCESS_SECRET", { infer: true }),
       expiresIn: "15m", // 15분
@@ -136,8 +76,8 @@ export class AuthService {
   /**
    * Refresh Token 생성
    */
-  private async generateRefreshToken(userId: string): Promise<string> {
-    const payload = { sub: userId };
+  private async generateRefreshToken(userId: bigint): Promise<string> {
+    const payload = { sub: userId.toString() };
     return this.jwtService.signAsync(payload, {
       secret: this.configService.get("JWT_REFRESH_SECRET", { infer: true }),
       expiresIn: "7d", // 7일
@@ -148,7 +88,7 @@ export class AuthService {
    * Access Token과 Refresh Token 생성
    */
   private async generateTokens(
-    userId: string,
+    userId: bigint,
     email?: string
   ): Promise<{ accessToken: string; refreshToken: string }> {
     const [accessToken, refreshToken] = await Promise.all([
@@ -160,15 +100,29 @@ export class AuthService {
   }
 
   /**
-   * Refresh Token 업데이트
+   * Refresh Token 해시 생성
    */
-  private async updateRefreshToken(
-    userId: string,
+  private hashToken(token: string): string {
+    return createHash("sha256").update(token).digest("hex");
+  }
+
+  /**
+   * Refresh Token 저장
+   */
+  private async saveRefreshToken(
+    userId: bigint,
     refreshToken: string
   ): Promise<void> {
-    await this.prisma.user.update({
-      where: { id: userId },
-      data: { refreshToken },
+    const tokenHash = this.hashToken(refreshToken);
+    const expiresAt = new Date();
+    expiresAt.setDate(expiresAt.getDate() + 7); // 7일 후
+
+    await this.prisma.refreshToken.create({
+      data: {
+        userId,
+        tokenHash,
+        expiresAt,
+      },
     });
   }
 
@@ -179,48 +133,63 @@ export class AuthService {
     provider: "GITHUB" | "KAKAO",
     providerId: string,
     email: string | null,
-    username: string | null,
-    name: string | null,
-    avatar: string | null
+    nickname: string | null
   ): Promise<{
     user: UserPayload;
     tokens: { accessToken: string; refreshToken: string };
   }> {
-    let user = await this.prisma.user.findFirst({
+    // OAuthAccount에서 사용자 찾기
+    let oauthAccount = await this.prisma.oAuthAccount.findUnique({
       where: {
-        provider,
-        providerId,
+        provider_providerUserId: {
+          provider,
+          providerUserId: providerId,
+        },
+      },
+      include: {
+        user: true,
       },
     });
+
+    let user = oauthAccount?.user;
 
     if (!user) {
       // 이메일로 기존 사용자 찾기
       if (email) {
-        user = await this.prisma.user.findUnique({
+        const existingUser = await this.prisma.user.findUnique({
           where: { email },
         });
+
+        if (existingUser) {
+          user = existingUser;
+          // 기존 사용자에 OAuth 계정 연결
+          oauthAccount = await this.prisma.oAuthAccount.create({
+            data: {
+              userId: user.id,
+              provider,
+              providerUserId: providerId,
+              providerEmail: email,
+            },
+            include: {
+              user: true,
+            },
+          });
+        }
       }
 
-      if (user) {
-        // 기존 사용자에 OAuth 정보 연결
-        user = await this.prisma.user.update({
-          where: { id: user.id },
-          data: {
-            provider,
-            providerId,
-            avatar: avatar || user.avatar,
-          },
-        });
-      } else {
+      if (!user) {
         // 새 사용자 생성
         user = await this.prisma.user.create({
           data: {
             email,
-            username: username || email?.split("@")[0] || null,
-            name: name || username || null,
-            avatar,
-            provider,
-            providerId,
+            nickname: nickname || email?.split("@")[0] || null,
+            oauthAccounts: {
+              create: {
+                provider,
+                providerUserId: providerId,
+                providerEmail: email,
+              },
+            },
           },
         });
       }
@@ -230,24 +199,29 @@ export class AuthService {
         where: { id: user.id },
         data: {
           email: email || user.email,
-          username: username || user.username,
-          name: name || user.name,
-          avatar: avatar || user.avatar,
+          nickname: nickname || user.nickname,
         },
       });
+
+      // OAuthAccount 정보 업데이트
+      if (oauthAccount) {
+        await this.prisma.oAuthAccount.update({
+          where: { id: oauthAccount.id },
+          data: {
+            providerEmail: email || oauthAccount.providerEmail,
+          },
+        });
+      }
     }
 
     const tokens = await this.generateTokens(user.id, user.email || undefined);
-    await this.updateRefreshToken(user.id, tokens.refreshToken);
+    await this.saveRefreshToken(user.id, tokens.refreshToken);
 
     return {
       user: {
         id: user.id,
         email: user.email,
-        username: user.username,
-        name: user.name,
-        avatar: user.avatar,
-        provider: user.provider,
+        nickname: user.nickname,
       },
       tokens,
     };
