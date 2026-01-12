@@ -12,24 +12,145 @@ datasource db {
 
 // User 모델
 model User {
-  id        String   @id @default(cuid())
+  id        BigInt   @id @default(autoincrement())
   email     String?  @unique
-  username  String?  @unique
-  name      String?
-  avatar    String?
-  provider  AuthProvider @default(EMAIL)
-  providerId String? // OAuth provider의 사용자 ID
-  refreshToken String? // Refresh token 저장
+  nickname  String?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  @@index([email])
-  @@index([provider, providerId])
+  oauthAccounts     OAuthAccount[]            @relation("UserOAuthAccounts")
+  refreshTokens     RefreshToken[]            @relation("UserRefreshTokens")
+  interviewSessions InterviewSession[]        @relation("UserInterviewSessions")
+  sessionSummaries  InterviewSessionSummary[] @relation("UserSessionSummaries")
 }
 
-enum AuthProvider {
-  EMAIL
-  GITHUB
-  KAKAO
+// OAuth 계정 모델
+model OAuthAccount {
+  id             BigInt   @id @default(autoincrement())
+  userId         BigInt
+  provider       String
+  providerUserId String
+  providerEmail  String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  user User @relation("UserOAuthAccounts", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerUserId])
+  @@unique([userId, provider])
+  @@index([userId])
 }
 
+// Refresh Token 모델
+model RefreshToken {
+  id            BigInt    @id @default(autoincrement())
+  userId        BigInt
+  tokenHash     String    @unique
+  expiresAt     DateTime
+  revokedAt     DateTime?
+  rotatedFromId BigInt?
+  createdAt     DateTime  @default(now())
+
+  user        User           @relation("UserRefreshTokens", fields: [userId], references: [id], onDelete: Cascade)
+  rotatedFrom RefreshToken?  @relation("TokenRotation", fields: [rotatedFromId], references: [id])
+  rotatedTo   RefreshToken[] @relation("TokenRotation")
+
+  @@index([userId, expiresAt])
+}
+
+// Interview Session 모델
+enum InterviewSessionStatus {
+  in_progress
+  analyzing
+  done
+  failed
+}
+
+model InterviewSession {
+  sessionId      String                 @id
+  userId         BigInt?
+  title          String?
+  topic          String?
+  status         InterviewSessionStatus
+  currentTurn    Int
+  followupStreak Int
+  totalLimitSec  Int
+  turnLimitSec   Int
+  startedAt      DateTime
+  endedAt        DateTime?
+  createdAt      DateTime               @default(now())
+  updatedAt      DateTime               @updatedAt
+
+  user    User?                    @relation("UserInterviewSessions", fields: [userId], references: [id], onDelete: Restrict)
+  turns   InterviewTurn[]          @relation("SessionTurns")
+  report  InterviewReport?         @relation("SessionReport")
+  summary InterviewSessionSummary? @relation("SessionSummary")
+
+  @@index([userId, createdAt])
+  @@index([status, createdAt])
+}
+
+// Interview Turn 모델
+enum QuestionType {
+  base
+  followup
+}
+
+model InterviewTurn {
+  turnId       BigInt       @id @default(autoincrement())
+  sessionId    String
+  turnIndex    Int
+  questionType QuestionType
+  questionText String
+  answerText   String
+  metricsJson  Json?
+  createdAt    DateTime     @default(now())
+  submittedAt  DateTime?
+
+  session InterviewSession @relation("SessionTurns", fields: [sessionId], references: [sessionId], onDelete: Cascade)
+
+  @@unique([sessionId, turnIndex])
+  @@index([sessionId, turnIndex])
+}
+
+// Interview Report 모델
+enum InterviewReportStatus {
+  analyzing
+  done
+  failed
+}
+
+model InterviewReport {
+  reportId      BigInt                @id @default(autoincrement())
+  sessionId     String                @unique
+  status        InterviewReportStatus
+  resultJson    Json?
+  totalScore    Float?
+  durationSec   Int?
+  model         String?
+  promptVersion String?
+  generatedAt   DateTime?
+  createdAt     DateTime              @default(now())
+  updatedAt     DateTime              @updatedAt
+
+  session InterviewSession @relation("SessionReport", fields: [sessionId], references: [sessionId], onDelete: Cascade)
+}
+
+// Interview Session Summary 모델
+model InterviewSessionSummary {
+  summaryId         BigInt   @id @default(autoincrement())
+  sessionId         String   @unique
+  userId            BigInt?
+  title             String
+  topic             String
+  totalScore        Float
+  durationSec       Int
+  competencyAvgJson Json
+  sessionDate       DateTime
+  createdAt         DateTime @default(now())
+
+  session InterviewSession @relation("SessionSummary", fields: [sessionId], references: [sessionId], onDelete: Cascade)
+  user    User?            @relation("UserSessionSummaries", fields: [userId], references: [id], onDelete: Restrict)
+
+  @@index([userId, sessionDate(sort: Desc)])
+}
