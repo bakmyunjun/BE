@@ -1,10 +1,11 @@
 import {
   Injectable,
   UnauthorizedException,
+  BadRequestException,
 } from "@nestjs/common";
 import { JwtService } from "@nestjs/jwt";
 import { ConfigService } from "@nestjs/config";
-import { createHash } from "node:crypto";
+import { createHash, randomBytes } from "node:crypto";
 import { PrismaService } from "../../database/prisma.service";
 import type { Env } from "../../config/env.schema";
 import type { UserPayload } from "../decorators/user.decorator";
@@ -127,7 +128,80 @@ export class AuthService {
   }
 
   /**
-   * OAuth 사용자 찾기 또는 생성
+   * OAuth Authorization Code 생성
+   */
+  async generateAuthorizationCode(userId: bigint): Promise<string> {
+    const code = randomBytes(32).toString("hex");
+    const expiresAt = new Date();
+    expiresAt.setMinutes(expiresAt.getMinutes() + 10); // 10분 후 만료
+
+    await this.prisma.oAuthAuthorizationCode.create({
+      data: {
+        code,
+        userId,
+        expiresAt,
+      },
+    });
+
+    return code;
+  }
+
+  /**
+   * OAuth Authorization Code로 토큰 교환
+   */
+  async exchangeAuthorizationCode(
+    code: string
+  ): Promise<{
+    user: {
+      id: string;
+      email: string | null;
+      nickname: string | null;
+    };
+    tokens: { accessToken: string; refreshToken: string };
+  }> {
+    const authorizationCode = await this.prisma.oAuthAuthorizationCode.findUnique(
+      {
+        where: { code },
+        include: { user: true },
+      }
+    );
+
+    if (!authorizationCode) {
+      throw new BadRequestException("유효하지 않은 인증 코드입니다.");
+    }
+
+    if (authorizationCode.usedAt) {
+      throw new BadRequestException("이미 사용된 인증 코드입니다.");
+    }
+
+    if (authorizationCode.expiresAt < new Date()) {
+      throw new BadRequestException("만료된 인증 코드입니다.");
+    }
+
+    // 코드를 사용한 것으로 표시
+    await this.prisma.oAuthAuthorizationCode.update({
+      where: { id: authorizationCode.id },
+      data: { usedAt: new Date() },
+    });
+
+    const tokens = await this.generateTokens(
+      authorizationCode.user.id,
+      authorizationCode.user.email || undefined
+    );
+    await this.saveRefreshToken(authorizationCode.user.id, tokens.refreshToken);
+
+    return {
+      user: {
+        id: authorizationCode.user.id.toString(),
+        email: authorizationCode.user.email,
+        nickname: authorizationCode.user.nickname,
+      },
+      tokens,
+    };
+  }
+
+  /**
+   * OAuth 사용자 찾기 또는 생성 (토큰 생성 없이 사용자 정보만 반환)
    */
   async findOrCreateOAuthUser(
     provider: "GITHUB" | "KAKAO",
@@ -136,7 +210,6 @@ export class AuthService {
     nickname: string | null
   ): Promise<{
     user: UserPayload;
-    tokens: { accessToken: string; refreshToken: string };
   }> {
     // OAuthAccount에서 사용자 찾기
     let oauthAccount = await this.prisma.oAuthAccount.findUnique({
@@ -214,16 +287,12 @@ export class AuthService {
       }
     }
 
-    const tokens = await this.generateTokens(user.id, user.email || undefined);
-    await this.saveRefreshToken(user.id, tokens.refreshToken);
-
     return {
       user: {
         id: user.id,
         email: user.email,
         nickname: user.nickname,
       },
-      tokens,
     };
   }
 }
