@@ -31,10 +31,10 @@ RUN corepack enable && corepack prepare pnpm@latest --activate
 COPY package.json pnpm-lock.yaml ./
 RUN pnpm install --frozen-lockfile --prod --ignore-scripts
 
-# 빌드된 파일 복사
-COPY --from=builder /app/dist ./dist
+# Prisma 스키마 복사 및 Prisma Client 생성
 COPY --from=builder /app/prisma ./prisma
-COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
+# prisma CLI는 devDependency이므로 임시로 설치하여 generate 실행
+RUN pnpm add -D prisma@^5.22.0 && pnpm prisma generate && pnpm remove prisma
 
 # 포트 노출
 EXPOSE 3000
