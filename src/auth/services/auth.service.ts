@@ -149,9 +149,7 @@ export class AuthService {
   /**
    * OAuth Authorization Code로 토큰 교환
    */
-  async exchangeAuthorizationCode(
-    code: string
-  ): Promise<{
+  async exchangeAuthorizationCode(code: string): Promise<{
     user: {
       id: string;
       email: string | null;
@@ -159,30 +157,30 @@ export class AuthService {
     };
     tokens: { accessToken: string; refreshToken: string };
   }> {
-    const authorizationCode = await this.prisma.oAuthAuthorizationCode.findUnique(
-      {
+    // Atomically mark code as used and retrieve it
+    const now = new Date();
+    const result = await this.prisma.oAuthAuthorizationCode.updateMany({
+      where: {
+        code,
+        usedAt: null,
+        expiresAt: { gt: now },
+      },
+      data: { usedAt: now },
+    });
+
+    if (result.count === 0) {
+      throw new BadRequestException("유효하지 않거나 만료된 인증 코드입니다.");
+    }
+
+    const authorizationCode =
+      await this.prisma.oAuthAuthorizationCode.findUnique({
         where: { code },
         include: { user: true },
-      }
-    );
+      });
 
     if (!authorizationCode) {
       throw new BadRequestException("유효하지 않은 인증 코드입니다.");
     }
-
-    if (authorizationCode.usedAt) {
-      throw new BadRequestException("이미 사용된 인증 코드입니다.");
-    }
-
-    if (authorizationCode.expiresAt < new Date()) {
-      throw new BadRequestException("만료된 인증 코드입니다.");
-    }
-
-    // 코드를 사용한 것으로 표시
-    await this.prisma.oAuthAuthorizationCode.update({
-      where: { id: authorizationCode.id },
-      data: { usedAt: new Date() },
-    });
 
     const tokens = await this.generateTokens(
       authorizationCode.user.id,
@@ -235,17 +233,24 @@ export class AuthService {
 
         if (existingUser) {
           user = existingUser;
-          // 기존 사용자에 OAuth 계정 연결
-          oauthAccount = await this.prisma.oAuthAccount.create({
-            data: {
+          // 기존 사용자에 OAuth 계정 연결 (upsert로 race condition 방지)
+          oauthAccount = await this.prisma.oAuthAccount.upsert({
+            where: {
+              provider_providerUserId: {
+                provider,
+                providerUserId: providerId,
+              },
+            },
+            update: {
+              providerEmail: email,
+            },
+            create: {
               userId: user.id,
               provider,
               providerUserId: providerId,
               providerEmail: email,
             },
-            include: {
-              user: true,
-            },
+            include: { user: true },
           });
         }
       }
