@@ -8,15 +8,42 @@ services:
       target: production
     restart: unless-stopped
     env_file:
-      - .env
+      - .env.production
     environment:
       NODE_ENV: production
-      PORT: 3000
+      PORT: ${PORT:-3000}
+      TZ: ${TZ:-Asia/Seoul}
+      # RDS 연결 (환경 변수에서 직접 받음)
+      # .env.production에 DATABASE_URL을 RDS 엔드포인트로 설정
+      # 예: DATABASE_URL=postgresql://user:password@your-rds-endpoint.region.rds.amazonaws.com:5432/dbname
+      DATABASE_URL: ${DATABASE_URL}
+      # ElastiCache 연결 (환경 변수에서 직접 받음)
+      # .env.production에 REDIS_URL을 ElastiCache 엔드포인트로 설정
+      # 예: REDIS_URL=redis://your-elasticache-endpoint.cache.amazonaws.com:6379
+      REDIS_URL: ${REDIS_URL}
+      # JWT 시크릿 (필수)
+      JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET}
+      # OAuth 설정 (선택)
+      GITHUB_CLIENT_ID: ${GITHUB_CLIENT_ID:-}
+      GITHUB_CLIENT_SECRET: ${GITHUB_CLIENT_SECRET:-}
+      GITHUB_CALLBACK_URL: ${GITHUB_CALLBACK_URL:-}
+      KAKAO_CLIENT_ID: ${KAKAO_CLIENT_ID:-}
+      KAKAO_CLIENT_SECRET: ${KAKAO_CLIENT_SECRET:-}
+      KAKAO_CALLBACK_URL: ${KAKAO_CALLBACK_URL:-}
+      OAUTH_REDIRECT_URL: ${OAUTH_REDIRECT_URL:-}
+      FRONTEND_URL: ${FRONTEND_URL:-}
     ports:
-      - "127.0.0.1:${PORT:-3000}:3000"
-    networks:
-      - bakmyunjun-network
-
-networks:
-  bakmyunjun-network:
-    driver: bridge
+      - "${PORT:-3000}:3000"
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "require('http').get('http://localhost:3000/', (r) => {process.exit(r.statusCode === 200 ? 0 : 1)})",
+        ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
