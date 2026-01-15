@@ -2,10 +2,15 @@ version: "3.8"
 
 services:
   app:
-    build:
-      context: .
-      dockerfile: Dockerfile
-      target: production
+    # Docker Hub에서 이미지 pull (로컬에서 빌드하지 않음)
+    # 이미지 이름: YOUR_DOCKERHUB_USERNAME/bakmyunjun-be:latest
+    # 또는 특정 태그: YOUR_DOCKERHUB_USERNAME/bakmyunjun-be:v1.0.0
+    image: choihooo/bakmyunjun-be:latest
+    # 로컬에서 빌드하려면 아래 주석 해제하고 위 image 줄 주석 처리
+    # build:
+    #   context: .
+    #   dockerfile: Dockerfile
+    #   target: production
     restart: unless-stopped
     env_file:
       - .env.production
