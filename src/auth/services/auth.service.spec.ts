@@ -1,10 +1,9 @@
 import { Test, TestingModule } from "@nestjs/testing";
 import { JwtService } from "@nestjs/jwt";
 import { ConfigService } from "@nestjs/config";
-import { UnauthorizedException, ConflictException } from "@nestjs/common";
+import { UnauthorizedException } from "@nestjs/common";
 import { AuthService } from "./auth.service";
 import { PrismaService } from "../../database/prisma.service";
-import { LoginDto, RegisterDto } from "../dto/auth.dto";
 
 describe("AuthService", () => {
   let service: AuthService;
@@ -17,6 +16,16 @@ describe("AuthService", () => {
       findFirst: jest.fn(),
       create: jest.fn(),
       update: jest.fn(),
+    },
+    oAuthAccount: {
+      findUnique: jest.fn(),
+      create: jest.fn(),
+      update: jest.fn(),
+      upsert: jest.fn(),
+    },
+    refreshToken: {
+      create: jest.fn(),
+      findFirst: jest.fn(),
     },
   };
 
@@ -61,56 +70,6 @@ describe("AuthService", () => {
     jest.clearAllMocks();
   });
 
-  describe("login", () => {
-    it("사용자를 찾을 수 없으면 UnauthorizedException을 던져야 함", async () => {
-      const loginDto: LoginDto = {
-        email: "test@example.com",
-        password: "password123",
-      };
-
-      mockPrismaService.user.findUnique.mockResolvedValue(null);
-
-      await expect(service.login(loginDto)).rejects.toThrow(
-        UnauthorizedException
-      );
-    });
-
-    it("EMAIL provider가 아니면 UnauthorizedException을 던져야 함", async () => {
-      const loginDto: LoginDto = {
-        email: "test@example.com",
-        password: "password123",
-      };
-
-      mockPrismaService.user.findUnique.mockResolvedValue({
-        id: "user123",
-        email: "test@example.com",
-        provider: "GITHUB",
-      });
-
-      await expect(service.login(loginDto)).rejects.toThrow(
-        UnauthorizedException
-      );
-    });
-  });
-
-  describe("register", () => {
-    it("이미 존재하는 이메일이면 ConflictException을 던져야 함", async () => {
-      const registerDto: RegisterDto = {
-        email: "existing@example.com",
-        password: "password123",
-      };
-
-      mockPrismaService.user.findUnique.mockResolvedValue({
-        id: "user123",
-        email: "existing@example.com",
-      });
-
-      await expect(service.register(registerDto)).rejects.toThrow(
-        ConflictException
-      );
-    });
-  });
-
   describe("refresh", () => {
     it("유효하지 않은 토큰이면 UnauthorizedException을 던져야 함", async () => {
       mockJwtService.verify.mockImplementation(() => {
@@ -120,6 +79,172 @@ describe("AuthService", () => {
       await expect(service.refresh("invalid-token")).rejects.toThrow(
         UnauthorizedException
       );
+    });
+  });
+
+  describe("findOrCreateOAuthUser", () => {
+    const mockUserId = BigInt(1);
+    const mockProviderId = "12345";
+    const mockEmail = "test@example.com";
+    const mockNickname = "testuser";
+
+    beforeEach(() => {
+      mockJwtService.signAsync.mockResolvedValue("mock-token");
+    });
+
+    it("기존 OAuth 계정이 있으면 사용자 정보를 업데이트해야 함", async () => {
+      const mockUser = {
+        id: mockUserId,
+        email: mockEmail,
+        nickname: mockNickname,
+      };
+
+      const mockOAuthAccount = {
+        id: BigInt(1),
+        userId: mockUserId,
+        provider: "GITHUB",
+        providerUserId: mockProviderId,
+        providerEmail: mockEmail,
+        user: mockUser,
+      };
+
+      mockPrismaService.oAuthAccount.findUnique.mockResolvedValue(
+        mockOAuthAccount
+      );
+      mockPrismaService.user.update.mockResolvedValue(mockUser);
+      mockPrismaService.oAuthAccount.update.mockResolvedValue(mockOAuthAccount);
+
+      const result = await service.findOrCreateOAuthUser(
+        "GITHUB",
+        mockProviderId,
+        mockEmail,
+        mockNickname
+      );
+
+      expect(result).toHaveProperty("user");
+      expect(result.user).toHaveProperty("id");
+      expect(result.user).toHaveProperty("email");
+      expect(result.user).toHaveProperty("nickname");
+      expect(mockPrismaService.oAuthAccount.findUnique).toHaveBeenCalledWith({
+        where: {
+          provider_providerUserId: {
+            provider: "GITHUB",
+            providerUserId: mockProviderId,
+          },
+        },
+        include: {
+          user: true,
+        },
+      });
+      expect(mockPrismaService.user.update).toHaveBeenCalled();
+    });
+
+    it("OAuth 계정이 없고 이메일로 기존 사용자를 찾으면 OAuth 계정을 연결해야 함", async () => {
+      const mockUser = {
+        id: mockUserId,
+        email: mockEmail,
+        nickname: mockNickname,
+      };
+
+      mockPrismaService.oAuthAccount.findUnique.mockResolvedValue(null);
+      mockPrismaService.user.findUnique.mockResolvedValue(mockUser);
+      mockPrismaService.oAuthAccount.upsert.mockResolvedValue({
+        id: BigInt(1),
+        userId: mockUserId,
+        provider: "GITHUB",
+        providerUserId: mockProviderId,
+        providerEmail: mockEmail,
+        user: mockUser,
+      });
+
+      const result = await service.findOrCreateOAuthUser(
+        "GITHUB",
+        mockProviderId,
+        mockEmail,
+        mockNickname
+      );
+
+      expect(result).toHaveProperty("user");
+      expect(result.user).toHaveProperty("id");
+      expect(mockPrismaService.user.findUnique).toHaveBeenCalledWith({
+        where: { email: mockEmail },
+      });
+      expect(mockPrismaService.oAuthAccount.upsert).toHaveBeenCalledWith({
+        where: {
+          provider_providerUserId: {
+            provider: "GITHUB",
+            providerUserId: mockProviderId,
+          },
+        },
+        update: {
+          providerEmail: mockEmail,
+        },
+        create: {
+          userId: mockUserId,
+          provider: "GITHUB",
+          providerUserId: mockProviderId,
+          providerEmail: mockEmail,
+        },
+        include: { user: true },
+      });
+    });
+
+    it("OAuth 계정이 없고 새 사용자를 생성해야 함", async () => {
+      const mockUser = {
+        id: mockUserId,
+        email: mockEmail,
+        nickname: mockNickname,
+      };
+
+      mockPrismaService.oAuthAccount.findUnique.mockResolvedValue(null);
+      mockPrismaService.user.findUnique.mockResolvedValue(null);
+      mockPrismaService.user.create.mockResolvedValue(mockUser);
+
+      const result = await service.findOrCreateOAuthUser(
+        "GITHUB",
+        mockProviderId,
+        mockEmail,
+        mockNickname
+      );
+
+      expect(result).toHaveProperty("user");
+      expect(result.user).toHaveProperty("id");
+      expect(mockPrismaService.user.create).toHaveBeenCalledWith({
+        data: {
+          email: mockEmail,
+          nickname: mockNickname,
+          oauthAccounts: {
+            create: {
+              provider: "GITHUB",
+              providerUserId: mockProviderId,
+              providerEmail: mockEmail,
+            },
+          },
+        },
+      });
+    });
+
+    it("이메일이 없어도 사용자를 생성해야 함", async () => {
+      const mockUser = {
+        id: mockUserId,
+        email: null,
+        nickname: mockNickname,
+      };
+
+      mockPrismaService.oAuthAccount.findUnique.mockResolvedValue(null);
+      mockPrismaService.user.findUnique.mockResolvedValue(null);
+      mockPrismaService.user.create.mockResolvedValue(mockUser);
+
+      const result = await service.findOrCreateOAuthUser(
+        "KAKAO",
+        mockProviderId,
+        null,
+        mockNickname
+      );
+
+      expect(result).toHaveProperty("user");
+      expect(result.user).toHaveProperty("id");
+      expect(mockPrismaService.user.create).toHaveBeenCalled();
     });
   });
 });

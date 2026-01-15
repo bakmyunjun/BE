@@ -5,8 +5,10 @@ import {
   Get,
   UseGuards,
   Req,
+  Res,
   HttpCode,
   HttpStatus,
+  InternalServerErrorException,
 } from "@nestjs/common";
 import {
   ApiTags,
@@ -15,54 +17,27 @@ import {
   ApiBearerAuth,
   ApiBody,
 } from "@nestjs/swagger";
-import type { Request } from "express";
+import type { Request, Response } from "express";
+import { ConfigService } from "@nestjs/config";
 import { AuthService } from "../services/auth.service";
-import { LoginDto, RegisterDto, TokenResponseDto } from "../dto/auth.dto";
 import { Public } from "../decorators/public.decorator";
 import { JwtAuthGuard } from "../guards/jwt-auth.guard";
 import { User } from "../decorators/user.decorator";
 import type { UserPayload } from "../decorators/user.decorator";
 import { GitHubAuthGuard } from "../guards/github-auth.guard";
 import { KakaoAuthGuard } from "../guards/kakao-auth.guard";
+import type { Env } from "../../config/env.schema";
+import { ExchangeCodeDto } from "../dto/auth.dto";
+import { LoggerService } from "../../common/logger/logger.service";
 
 @ApiTags("auth")
 @Controller("auth")
 export class AuthController {
-  constructor(private readonly authService: AuthService) {}
-
-  /**
-   * 이메일/비밀번호 로그인
-   */
-  @Public()
-  @Post("login")
-  @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: "이메일/비밀번호 로그인" })
-  @ApiResponse({
-    status: 200,
-    description: "로그인 성공",
-    type: TokenResponseDto,
-  })
-  @ApiResponse({ status: 401, description: "인증 실패" })
-  async login(@Body() loginDto: LoginDto): Promise<TokenResponseDto> {
-    return this.authService.login(loginDto);
-  }
-
-  /**
-   * 회원가입
-   */
-  @Public()
-  @Post("register")
-  @HttpCode(HttpStatus.CREATED)
-  @ApiOperation({ summary: "회원가입" })
-  @ApiResponse({
-    status: 201,
-    description: "회원가입 성공",
-    type: TokenResponseDto,
-  })
-  @ApiResponse({ status: 409, description: "이미 가입된 이메일" })
-  async register(@Body() registerDto: RegisterDto): Promise<TokenResponseDto> {
-    return this.authService.register(registerDto);
-  }
+  constructor(
+    private readonly authService: AuthService,
+    private readonly configService: ConfigService<Env, true>,
+    private readonly logger: LoggerService
+  ) {}
 
   /**
    * Refresh Token으로 Access Token 재발급
@@ -113,18 +88,19 @@ export class AuthController {
     schema: {
       type: "object",
       properties: {
-        id: { type: "string", example: "clx1234567890" },
-        email: { type: "string", example: "user@example.com" },
-        username: { type: "string", example: "johndoe" },
-        name: { type: "string", example: "John Doe" },
-        avatar: { type: "string", nullable: true, example: "https://example.com/avatar.jpg" },
-        provider: { type: "string", enum: ["EMAIL", "GITHUB", "KAKAO"] },
+        id: { type: "string", format: "bigint", example: "1" },
+        email: { type: "string", nullable: true, example: "user@example.com" },
+        nickname: { type: "string", nullable: true, example: "johndoe" },
       },
     },
   })
   @ApiResponse({ status: 401, description: "인증 필요" })
   getProfile(@User() user: UserPayload) {
-    return user;
+    return {
+      id: user.id.toString(),
+      email: user.email,
+      nickname: user.nickname,
+    };
   }
 
   /**
@@ -143,16 +119,61 @@ export class AuthController {
   @Public()
   @Get("github/callback")
   @UseGuards(GitHubAuthGuard)
-  async githubCallback(@Req() req: Request) {
+  async githubCallback(@Req() req: Request, @Res() res: Response) {
     const result = req.user as {
       user: UserPayload;
-      tokens: { accessToken: string; refreshToken: string };
     };
-    // 실제로는 프론트엔드로 리다이렉트하거나 토큰을 반환해야 함
-    return {
-      ...result.tokens,
-      user: result.user,
-    };
+
+    // OAUTH_REDIRECT_URL 필수 체크
+    const redirectUrl = this.configService.get("OAUTH_REDIRECT_URL", {
+      infer: true,
+    });
+    if (!redirectUrl) {
+      this.logger.logError(
+        req.id as string,
+        new Error("OAUTH_REDIRECT_URL is not configured"),
+        "AuthController.githubCallback",
+        {
+          userId: result.user.id.toString(),
+        }
+      );
+      throw new InternalServerErrorException(
+        "OAuth 리다이렉트 URL이 설정되지 않았습니다."
+      );
+    }
+
+    try {
+      // Authorization code 생성
+      const code = await this.authService.generateAuthorizationCode(
+        result.user.id
+      );
+
+      // Authorization code를 쿼리 파라미터로 프론트엔드에 전달
+      const url = new URL(redirectUrl);
+      url.searchParams.set("code", code);
+
+      res.redirect(url.toString());
+    } catch (error) {
+      this.logger.logError(
+        req.id as string,
+        error instanceof Error ? error : new Error(String(error)),
+        "AuthController.githubCallback",
+        {
+          userId: result.user.id.toString(),
+          redirectUrl,
+        }
+      );
+
+      if (error instanceof TypeError && error.message.includes("Invalid URL")) {
+        throw new InternalServerErrorException(
+          "잘못된 리다이렉트 URL 형식입니다."
+        );
+      }
+
+      throw new InternalServerErrorException(
+        "OAuth 콜백 처리 중 오류가 발생했습니다."
+      );
+    }
   }
 
   /**
@@ -171,16 +192,104 @@ export class AuthController {
   @Public()
   @Get("kakao/callback")
   @UseGuards(KakaoAuthGuard)
-  async kakaoCallback(@Req() req: Request) {
+  async kakaoCallback(@Req() req: Request, @Res() res: Response) {
     const result = req.user as {
       user: UserPayload;
-      tokens: { accessToken: string; refreshToken: string };
     };
-    // 실제로는 프론트엔드로 리다이렉트하거나 토큰을 반환해야 함
-    return {
-      ...result.tokens,
-      user: result.user,
-    };
+
+    // OAUTH_REDIRECT_URL 필수 체크
+    const redirectUrl = this.configService.get("OAUTH_REDIRECT_URL", {
+      infer: true,
+    });
+    if (!redirectUrl) {
+      this.logger.logError(
+        req.id as string,
+        new Error("OAUTH_REDIRECT_URL is not configured"),
+        "AuthController.kakaoCallback",
+        {
+          userId: result.user.id.toString(),
+        }
+      );
+      throw new InternalServerErrorException(
+        "OAuth 리다이렉트 URL이 설정되지 않았습니다."
+      );
+    }
+
+    try {
+      // Authorization code 생성
+      const code = await this.authService.generateAuthorizationCode(
+        result.user.id
+      );
+
+      // Authorization code를 쿼리 파라미터로 프론트엔드에 전달
+      const url = new URL(redirectUrl);
+      url.searchParams.set("code", code);
+
+      res.redirect(url.toString());
+    } catch (error) {
+      this.logger.logError(
+        req.id as string,
+        error instanceof Error ? error : new Error(String(error)),
+        "AuthController.kakaoCallback",
+        {
+          userId: result.user.id.toString(),
+          redirectUrl,
+        }
+      );
+
+      if (error instanceof TypeError && error.message.includes("Invalid URL")) {
+        throw new InternalServerErrorException(
+          "잘못된 리다이렉트 URL 형식입니다."
+        );
+      }
+
+      throw new InternalServerErrorException(
+        "OAuth 콜백 처리 중 오류가 발생했습니다."
+      );
+    }
+  }
+
+  /**
+   * OAuth Authorization Code로 토큰 교환
+   */
+  @Public()
+  @Post("oauth/token")
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: "OAuth Authorization Code로 토큰 교환" })
+  @ApiBody({ type: ExchangeCodeDto })
+  @ApiResponse({
+    status: 200,
+    description: "토큰 교환 성공",
+    schema: {
+      type: "object",
+      properties: {
+        user: {
+          type: "object",
+          properties: {
+            id: { type: "string", format: "bigint", example: "1" },
+            email: { type: "string", nullable: true, example: "user@example.com" },
+            nickname: { type: "string", nullable: true, example: "johndoe" },
+          },
+        },
+        tokens: {
+          type: "object",
+          properties: {
+            accessToken: {
+              type: "string",
+              example: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+            },
+            refreshToken: {
+              type: "string",
+              example: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+            },
+          },
+        },
+      },
+    },
+  })
+  @ApiResponse({ status: 400, description: "유효하지 않은 인증 코드" })
+  async exchangeCode(@Body() dto: ExchangeCodeDto) {
+    return this.authService.exchangeAuthorizationCode(dto.code);
   }
 }
 

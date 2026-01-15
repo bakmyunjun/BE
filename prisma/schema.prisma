@@ -18,10 +18,11 @@ model User {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  oauthAccounts     OAuthAccount[]            @relation("UserOAuthAccounts")
-  refreshTokens     RefreshToken[]            @relation("UserRefreshTokens")
-  interviewSessions InterviewSession[]        @relation("UserInterviewSessions")
-  sessionSummaries  InterviewSessionSummary[] @relation("UserSessionSummaries")
+  oauthAccounts           OAuthAccount[]            @relation("UserOAuthAccounts")
+  refreshTokens           RefreshToken[]            @relation("UserRefreshTokens")
+  oauthAuthorizationCodes OAuthAuthorizationCode[]  @relation("UserOAuthCodes")
+  interviewSessions       InterviewSession[]        @relation("UserInterviewSessions")
+  sessionSummaries        InterviewSessionSummary[] @relation("UserSessionSummaries")
 }
 
 // OAuth 계정 모델
@@ -56,6 +57,21 @@ model RefreshToken {
   rotatedTo   RefreshToken[] @relation("TokenRotation")
 
   @@index([userId, expiresAt])
+}
+
+// OAuth Authorization Code 모델
+model OAuthAuthorizationCode {
+  id        BigInt    @id @default(autoincrement())
+  code      String    @unique
+  userId    BigInt
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  user User @relation("UserOAuthCodes", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([code, expiresAt])
+  @@index([userId])
 }
 
 // Interview Session 모델

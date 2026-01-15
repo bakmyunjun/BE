@@ -11,25 +11,27 @@ export class GitHubStrategy extends PassportStrategy(Strategy, "github") {
     private readonly configService: ConfigService<Env, true>,
     private readonly authService: AuthService
   ) {
+    const callbackURL =
+      configService.get("GITHUB_CALLBACK_URL", { infer: true }) ||
+      "/auth/github/callback";
+
     super({
       clientID: configService.get("GITHUB_CLIENT_ID", { infer: true }) || "",
       clientSecret:
         configService.get("GITHUB_CLIENT_SECRET", { infer: true }) || "",
-      callbackURL: "/auth/github/callback",
+      callbackURL,
       scope: ["user:email"],
     });
   }
 
   async validate(accessToken: string, refreshToken: string, profile: Profile) {
-    const { id, username, displayName, photos, emails } = profile;
+    const { id, username, displayName, emails } = profile;
 
     const result = await this.authService.findOrCreateOAuthUser(
       "GITHUB",
-      id,
+      id.toString(),
       emails?.[0]?.value || null,
-      username || null,
-      displayName || username || null,
-      photos?.[0]?.value || null
+      displayName || username || null
     );
 
     return result;
