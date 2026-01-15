@@ -47,5 +47,5 @@ scripts
 postman
 
 # Prisma
-prisma/migrations
+# prisma/migrations는 마이그레이션 실행에 필요하므로 제외하지 않음
 

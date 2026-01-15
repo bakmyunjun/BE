@@ -16,6 +16,10 @@ const envSchema = z.object({
   KAKAO_CLIENT_SECRET: z.string().optional(),
   KAKAO_CALLBACK_URL: z.string().optional(),
   OAUTH_REDIRECT_URL: z.string().url().optional(),
+  ENABLE_SWAGGER: z
+    .string()
+    .optional()
+    .transform((val) => val === "true" || val === "1"),
 });
 
 export type Env = z.infer<typeof envSchema>;

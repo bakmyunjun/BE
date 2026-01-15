@@ -1,4 +1,4 @@
-name: bakmyunjun-prod
+version: "3.8"
 
 services:
   app:
@@ -9,32 +9,18 @@ services:
     restart: unless-stopped
     env_file:
       - .env.production
-    environment:
-      NODE_ENV: production
-      PORT: ${PORT:-3000}
-      TZ: ${TZ:-Asia/Seoul}
-      # RDS 연결 (환경 변수에서 직접 받음)
-      # .env.production에 DATABASE_URL을 RDS 엔드포인트로 설정
-      # 예: DATABASE_URL=postgresql://user:password@your-rds-endpoint.region.rds.amazonaws.com:5432/dbname
-      DATABASE_URL: ${DATABASE_URL}
-      # ElastiCache 연결 (환경 변수에서 직접 받음)
-      # .env.production에 REDIS_URL을 ElastiCache 엔드포인트로 설정
-      # 예: REDIS_URL=redis://your-elasticache-endpoint.cache.amazonaws.com:6379
-      REDIS_URL: ${REDIS_URL}
-      # JWT 시크릿 (필수)
-      JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET}
-      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET}
-      # OAuth 설정 (선택)
-      GITHUB_CLIENT_ID: ${GITHUB_CLIENT_ID:-}
-      GITHUB_CLIENT_SECRET: ${GITHUB_CLIENT_SECRET:-}
-      GITHUB_CALLBACK_URL: ${GITHUB_CALLBACK_URL:-}
-      KAKAO_CLIENT_ID: ${KAKAO_CLIENT_ID:-}
-      KAKAO_CLIENT_SECRET: ${KAKAO_CLIENT_SECRET:-}
-      KAKAO_CALLBACK_URL: ${KAKAO_CALLBACK_URL:-}
-      OAUTH_REDIRECT_URL: ${OAUTH_REDIRECT_URL:-}
-      FRONTEND_URL: ${FRONTEND_URL:-}
+    # env_file로 로드된 변수는 자동으로 컨테이너 환경 변수로 설정됩니다.
+    # .env.production 파일에 모든 환경 변수를 설정하세요.
+    # 예시:
+    # DATABASE_URL=postgresql://user:password@your-rds-endpoint.region.rds.amazonaws.com:5432/dbname
+    # REDIS_URL=redis://your-elasticache-endpoint.cache.amazonaws.com:6379
+    # JWT_ACCESS_SECRET=your-secret
+    # JWT_REFRESH_SECRET=your-secret
     ports:
-      - "${PORT:-3000}:3000"
+      # 포트 매핑 (호스트:컨테이너)
+      # 호스트 포트는 환경 변수 PORT로 설정하거나 기본값 3000 사용
+      # 컨테이너 내부 포트는 항상 3000 (앱이 3000 포트에서 실행)
+      - "3000:3000"
     healthcheck:
       test:
         [

@@ -12,6 +12,7 @@ async function bootstrap() {
   const configService = app.get(ConfigService<Env, true>);
   const port = configService.get("PORT", { infer: true });
   const nodeEnv = configService.get("NODE_ENV", { infer: true });
+  const enableSwaggerEnv = configService.get("ENABLE_SWAGGER", { infer: true });
 
   // Helmet 보안 헤더 설정
   // Swagger UI를 위해 CSP 완화 (개발 환경)
@@ -22,9 +23,9 @@ async function bootstrap() {
           defaultSrc: ["'self'"],
           styleSrc: ["'self'", "'unsafe-inline'"],
           scriptSrc:
-            nodeEnv === "production"
+            nodeEnv === "production" && enableSwaggerEnv !== true
               ? ["'self'"]
-              : ["'self'", "'unsafe-inline'", "'unsafe-eval'"], // Swagger UI를 위해 개발 환경에서만 완화
+              : ["'self'", "'unsafe-inline'", "'unsafe-eval'"], // Swagger UI를 위해 완화
           imgSrc: ["'self'", "data:", "https:"],
         },
       },
@@ -65,7 +66,10 @@ async function bootstrap() {
   app.useGlobalInterceptors(new TransformInterceptor());
 
   // Swagger API 문서 설정
-  if (nodeEnv !== "production") {
+  // 프로덕션에서도 ENABLE_SWAGGER=true로 설정하면 활성화됨
+  const enableSwagger = nodeEnv !== "production" || enableSwaggerEnv === true;
+
+  if (enableSwagger) {
     const config = new DocumentBuilder()
       .setTitle("Bakmyunjun API")
       .setDescription("Bakmyunjun 백엔드 API 문서")
