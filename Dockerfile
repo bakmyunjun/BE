@@ -27,6 +27,9 @@ WORKDIR /app
 # pnpm 설치
 RUN corepack enable && corepack prepare pnpm@latest --activate
 
+# husky 방지 (컨테이너 빌드에서 prepare 훅 꼬이는 것 예방)
+ENV HUSKY=0
+
 # 프로덕션 의존성만 설치
 COPY package.json pnpm-lock.yaml ./
 RUN pnpm install --frozen-lockfile --prod
