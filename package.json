@@ -14,7 +14,7 @@
     "docker:down": "docker-compose down",
     "docker:logs": "docker-compose logs -f",
     "docker:ps": "docker-compose ps",
-    "docker:build": "docker build -t choihooo/bakmyunjun-be:latest --target production .",
+    "docker:build": "docker build --platform linux/amd64 -t choihooo/bakmyunjun-be:latest --target production .",
     "docker:push": "docker push choihooo/bakmyunjun-be:latest",
     "docker:build:push": "pnpm docker:build && pnpm docker:push",
     "db:check": "ts-node -r tsconfig-paths/register scripts/check-db-connection.ts",
