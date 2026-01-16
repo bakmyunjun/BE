@@ -4,6 +4,8 @@ import request from "supertest";
 import type { App } from "supertest/types";
 import { AppModule } from "../src/app.module";
 import { PrismaService } from "../src/database/prisma.service";
+import { GitHubStrategy } from "../src/auth/strategies/github.strategy";
+import { KakaoStrategy } from "../src/auth/strategies/kakao.strategy";
 
 describe("AuthController (e2e)", () => {
   let app: INestApplication<App>;
@@ -12,7 +14,20 @@ describe("AuthController (e2e)", () => {
   beforeEach(async () => {
     const moduleFixture: TestingModule = await Test.createTestingModule({
       imports: [AppModule],
-    }).compile();
+    })
+      .overrideProvider(GitHubStrategy)
+      .useFactory({
+        factory: () => ({
+          validate: jest.fn(),
+        }),
+      })
+      .overrideProvider(KakaoStrategy)
+      .useFactory({
+        factory: () => ({
+          validate: jest.fn(),
+        }),
+      })
+      .compile();
 
     app = moduleFixture.createNestApplication();
     prismaService = moduleFixture.get<PrismaService>(PrismaService);
@@ -21,15 +36,19 @@ describe("AuthController (e2e)", () => {
   });
 
   afterEach(async () => {
-    // 테스트 데이터 정리
-    await prismaService.user.deleteMany({
-      where: {
-        email: {
-          startsWith: "test@",
+    if (prismaService) {
+      // 테스트 데이터 정리
+      await prismaService.user.deleteMany({
+        where: {
+          email: {
+            startsWith: "test@",
+          },
         },
-      },
-    });
-    await app.close();
+      });
+    }
+    if (app) {
+      await app.close();
+    }
   });
 
   describe("GET /auth/me", () => {

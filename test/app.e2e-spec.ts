@@ -5,6 +5,8 @@ import request from "supertest";
 import type { App } from "supertest/types";
 import { AppModule } from "./../src/app.module";
 import { TransformInterceptor } from "../src/common/interceptors/transform.interceptor";
+import { GitHubStrategy } from "../src/auth/strategies/github.strategy";
+import { KakaoStrategy } from "../src/auth/strategies/kakao.strategy";
 
 describe("AppController (e2e)", () => {
   let app: INestApplication<App>;
@@ -12,7 +14,20 @@ describe("AppController (e2e)", () => {
   beforeEach(async () => {
     const moduleFixture: TestingModule = await Test.createTestingModule({
       imports: [AppModule],
-    }).compile();
+    })
+      .overrideProvider(GitHubStrategy)
+      .useFactory({
+        factory: () => ({
+          validate: jest.fn(),
+        }),
+      })
+      .overrideProvider(KakaoStrategy)
+      .useFactory({
+        factory: () => ({
+          validate: jest.fn(),
+        }),
+      })
+      .compile();
 
     app = moduleFixture.createNestApplication();
 
@@ -34,7 +49,9 @@ describe("AppController (e2e)", () => {
   });
 
   afterEach(async () => {
-    await app.close();
+    if (app) {
+      await app.close();
+    }
   });
 
   it("/ (GET)", () => {
