@@ -1,17 +1,13 @@
 name: Docker Build and Push
 
 on:
-  push:
+  workflow_run:
+    workflows: ["CI"]
+    types:
+      - completed
     branches:
       - main
       - develop
-    paths:
-      - "src/**"
-      - "Dockerfile"
-      - "package.json"
-      - "pnpm-lock.yaml"
-      - "prisma/**"
-      - ".github/workflows/docker-build-push.yml"
   workflow_dispatch: # 수동 실행 가능
 
 env:
@@ -20,6 +16,8 @@ env:
 
 jobs:
   build-and-push:
+    # CI가 성공했을 때만 실행
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
     name: Build and Push Docker Image
     runs-on: ubuntu-latest
     permissions:

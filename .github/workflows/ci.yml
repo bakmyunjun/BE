@@ -28,40 +28,22 @@ env:
   JWT_ACCESS_SECRET: test-access-secret-key-minimum-32-characters
   JWT_REFRESH_SECRET: test-refresh-secret-key-minimum-32-characters
 
-# ---- Common step anchors (중복 제거) ----
-x-steps:
-  checkout: &checkout
-    uses: actions/checkout@v4
-
-  setup-pnpm: &setup-pnpm
-    uses: pnpm/action-setup@v2
-    with:
-      version: ${{ env.PNPM_VERSION }}
-
-  setup-node: &setup-node
-    uses: actions/setup-node@v4
-    with:
-      node-version: ${{ env.NODE_VERSION }}
-      cache: pnpm
-
-  install: &install
-    name: Install dependencies
-    run: pnpm install --frozen-lockfile
-
-  prisma-generate: &prisma-generate
-    name: Generate Prisma Client
-    run: pnpm prisma generate
-
 jobs:
   lint:
     name: Lint
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - *checkout
-      - *setup-pnpm
-      - *setup-node
-      - *install
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v2
+        with:
+          version: ${{ env.PNPM_VERSION }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
       - name: Run linter
         run: pnpm lint
 
@@ -70,11 +52,18 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
-      - *checkout
-      - *setup-pnpm
-      - *setup-node
-      - *install
-      - *prisma-generate
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v2
+        with:
+          version: ${{ env.PNPM_VERSION }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Generate Prisma Client
+        run: pnpm prisma generate
       - name: Build application
         run: pnpm build
       - name: Check build output
@@ -111,11 +100,18 @@ jobs:
           - 6379:6379
 
     steps:
-      - *checkout
-      - *setup-pnpm
-      - *setup-node
-      - *install
-      - *prisma-generate
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v2
+        with:
+          version: ${{ env.PNPM_VERSION }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Generate Prisma Client
+        run: pnpm prisma generate
 
       - name: Run database migrations
         # migrate deploy는 CI/배포에 적합(마이그레이션 파일 기준으로 적용)
