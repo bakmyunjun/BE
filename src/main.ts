@@ -3,11 +3,30 @@ import { ValidationPipe } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import helmet from 'helmet';
+import * as Sentry from '@sentry/nestjs';
+import { nodeProfilingIntegration } from '@sentry/profiling-node';
 import { AppModule } from './app.module';
 import type { Env } from './config/env.schema';
 import { TransformInterceptor } from './common/interceptors/transform.interceptor';
+import { SentryExceptionFilter } from './common/filters/sentry-exception.filter';
 
 async function bootstrap() {
+  // Sentry 초기화 (앱 생성 전)
+  const sentryDsn = process.env.SENTRY_DSN;
+  if (sentryDsn) {
+    Sentry.init({
+      dsn: sentryDsn,
+      environment: process.env.NODE_ENV || 'development',
+      // 개발: 100%, 프로덕션: 10% (비용 절감)
+      tracesSampleRate: process.env.NODE_ENV === 'production' ? 0.1 : 1.0,
+      profilesSampleRate: process.env.NODE_ENV === 'production' ? 0.1 : 1.0,
+      integrations: [
+        nodeProfilingIntegration(),
+        Sentry.prismaIntegration(),
+      ],
+    });
+  }
+
   const app = await NestFactory.create(AppModule);
   const configService = app.get(ConfigService<Env, true>);
   const port = configService.get('PORT', { infer: true });
@@ -60,6 +79,11 @@ async function bootstrap() {
 
   // 글로벌 인터셉터 (응답 변환)
   app.useGlobalInterceptors(new TransformInterceptor());
+
+  // Sentry 에러 필터 (500번대 에러만 Sentry에 전송)
+  if (sentryDsn) {
+    app.useGlobalFilters(new SentryExceptionFilter());
+  }
 
   // Swagger API 문서 설정 (항상 활성화)
   const config = new DocumentBuilder()

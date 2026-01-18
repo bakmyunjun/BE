@@ -21,6 +21,8 @@ const envSchema = z.object({
     .string()
     .optional()
     .transform((val) => (val ? val.split(',').map((url) => url.trim()) : [])),
+  // Sentry DSN (에러 로깅)
+  SENTRY_DSN: z.string().url().optional(),
   ENABLE_SWAGGER: z
     .string()
     .optional()
