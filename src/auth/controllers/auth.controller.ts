@@ -18,6 +18,7 @@ import {
   ApiResponse,
   ApiBearerAuth,
   ApiBody,
+  ApiQuery,
 } from '@nestjs/swagger';
 import type { Request, Response } from 'express';
 import type { RequestWithId } from '../../types/express';
@@ -125,6 +126,21 @@ export class AuthController {
   @Public()
   @Get('github/callback')
   @UseGuards(GitHubAuthGuard)
+  @ApiOperation({ summary: 'GitHub OAuth 콜백 (GitHub에서 호출)' })
+  @ApiQuery({
+    name: 'code',
+    description: 'GitHub에서 발급한 Authorization Code',
+    required: true,
+  })
+  @ApiQuery({
+    name: 'state',
+    description: 'OAuth State (CSRF 방지)',
+    required: true,
+  })
+  @ApiResponse({
+    status: 302,
+    description: '프론트엔드로 리다이렉트 (code, state 포함)',
+  })
   async githubCallback(
     @Req() req: RequestWithId,
     @Res() res: Response,
@@ -150,6 +166,21 @@ export class AuthController {
   @Public()
   @Get('kakao/callback')
   @UseGuards(KakaoAuthGuard)
+  @ApiOperation({ summary: 'Kakao OAuth 콜백 (Kakao에서 호출)' })
+  @ApiQuery({
+    name: 'code',
+    description: 'Kakao에서 발급한 Authorization Code',
+    required: true,
+  })
+  @ApiQuery({
+    name: 'state',
+    description: 'OAuth State (CSRF 방지)',
+    required: true,
+  })
+  @ApiResponse({
+    status: 302,
+    description: '프론트엔드로 리다이렉트 (code, state 포함)',
+  })
   async kakaoCallback(
     @Req() req: RequestWithId,
     @Res() res: Response,
