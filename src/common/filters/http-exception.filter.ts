@@ -4,11 +4,11 @@ import {
   ArgumentsHost,
   HttpException,
   HttpStatus,
-} from "@nestjs/common";
-import { Response } from "express";
-import { ErrorResponseDto } from "../dto/response.dto";
-import { generateRequestId } from "../utils/request-id.util";
-import { LoggerService } from "../logger/logger.service";
+} from '@nestjs/common';
+import { Response } from 'express';
+import { ErrorResponseDto } from '../dto/response.dto';
+import { generateRequestId } from '../utils/request-id.util';
+import { LoggerService } from '../logger/logger.service';
 
 @Catch(HttpException)
 export class HttpExceptionFilter implements ExceptionFilter {
@@ -22,7 +22,7 @@ export class HttpExceptionFilter implements ExceptionFilter {
 
     // Request ID 가져오기 (이미 설정되어 있다면 사용, 없으면 새로 생성)
     const requestId =
-      (request.headers["x-request-id"] as string) ||
+      (request.headers['x-request-id'] as string) ||
       request.id ||
       generateRequestId();
 
@@ -34,9 +34,9 @@ export class HttpExceptionFilter implements ExceptionFilter {
     let errorDetails: unknown;
 
     if (
-      typeof exceptionResponse === "object" &&
+      typeof exceptionResponse === 'object' &&
       exceptionResponse !== null &&
-      "message" in exceptionResponse
+      'message' in exceptionResponse
     ) {
       const responseObj = exceptionResponse as {
         message?: string | string[];
@@ -46,8 +46,8 @@ export class HttpExceptionFilter implements ExceptionFilter {
 
       // ValidationPipe 에러는 배열로 오는 경우가 많음
       if (Array.isArray(responseObj.message)) {
-        errorCode = "VALIDATION_ERROR";
-        errorMessage = "입력값 검증에 실패했습니다.";
+        errorCode = 'VALIDATION_ERROR';
+        errorMessage = '입력값 검증에 실패했습니다.';
         errorDetails = {
           fields: responseObj.message,
         };
@@ -55,14 +55,16 @@ export class HttpExceptionFilter implements ExceptionFilter {
         errorCode =
           responseObj.statusCode?.toString() ||
           HttpStatus[status] ||
-          "UNKNOWN_ERROR";
+          'UNKNOWN_ERROR';
         errorMessage =
-          (responseObj.message as string) || exception.message || "오류가 발생했습니다.";
+          (responseObj.message as string) ||
+          exception.message ||
+          '오류가 발생했습니다.';
         errorDetails = responseObj;
       }
     } else {
-      errorCode = HttpStatus[status] || "UNKNOWN_ERROR";
-      errorMessage = exception.message || "오류가 발생했습니다.";
+      errorCode = HttpStatus[status] || 'UNKNOWN_ERROR';
+      errorMessage = exception.message || '오류가 발생했습니다.';
     }
 
     const errorResponse = new ErrorResponseDto(
@@ -102,7 +104,7 @@ export class AllExceptionsFilter implements ExceptionFilter {
     const request = ctx.getRequest();
 
     const requestId =
-      (request.headers["x-request-id"] as string) ||
+      (request.headers['x-request-id'] as string) ||
       request.id ||
       generateRequestId();
 
@@ -114,13 +116,13 @@ export class AllExceptionsFilter implements ExceptionFilter {
     const errorMessage =
       exception instanceof Error
         ? exception.message
-        : "예상치 못한 오류가 발생했습니다.";
+        : '예상치 못한 오류가 발생했습니다.';
 
     const errorResponse = new ErrorResponseDto(
-      "INTERNAL_SERVER_ERROR",
+      'INTERNAL_SERVER_ERROR',
       errorMessage,
       requestId as string,
-      process.env.NODE_ENV === "development"
+      process.env.NODE_ENV === 'development'
         ? { stack: exception instanceof Error ? exception.stack : undefined }
         : undefined,
     );
@@ -130,7 +132,7 @@ export class AllExceptionsFilter implements ExceptionFilter {
       this.logger.logError(
         requestId as string,
         exception,
-        "AllExceptionsFilter",
+        'AllExceptionsFilter',
         {
           path: request.path,
           method: request.method,
@@ -143,7 +145,7 @@ export class AllExceptionsFilter implements ExceptionFilter {
       this.logger.logHttpError(
         requestId as string,
         status,
-        "INTERNAL_SERVER_ERROR",
+        'INTERNAL_SERVER_ERROR',
         errorMessage,
         request.path,
         request.method,
@@ -157,4 +159,3 @@ export class AllExceptionsFilter implements ExceptionFilter {
     response.status(status).json(errorResponse);
   }
 }
-

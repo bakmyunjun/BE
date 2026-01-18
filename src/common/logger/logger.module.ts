@@ -1,5 +1,5 @@
-import { Global, Module } from "@nestjs/common";
-import { LoggerService } from "./logger.service";
+import { Global, Module } from '@nestjs/common';
+import { LoggerService } from './logger.service';
 
 /**
  * Logger 모듈
@@ -11,4 +11,3 @@ import { LoggerService } from "./logger.service";
   exports: [LoggerService],
 })
 export class LoggerModule {}
-

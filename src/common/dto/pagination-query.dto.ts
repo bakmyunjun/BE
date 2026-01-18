@@ -1,5 +1,5 @@
-import { Type } from "class-transformer";
-import { IsOptional, IsInt, Min, Max } from "class-validator";
+import { Type } from 'class-transformer';
+import { IsOptional, IsInt, Min, Max } from 'class-validator';
 
 /**
  * 페이지네이션 쿼리 DTO
@@ -27,4 +27,3 @@ export class PaginationQueryDto {
     return this.size || 10;
   }
 }
-

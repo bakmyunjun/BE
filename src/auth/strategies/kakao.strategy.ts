@@ -1,24 +1,24 @@
-import { Injectable } from "@nestjs/common";
-import { PassportStrategy } from "@nestjs/passport";
-import { Strategy, Profile } from "passport-kakao";
-import { ConfigService } from "@nestjs/config";
-import type { Env } from "../../config/env.schema";
-import { AuthService } from "../services/auth.service";
+import { Injectable } from '@nestjs/common';
+import { PassportStrategy } from '@nestjs/passport';
+import { Strategy, Profile } from 'passport-kakao';
+import { ConfigService } from '@nestjs/config';
+import type { Env } from '../../config/env.schema';
+import { AuthService } from '../services/auth.service';
 
 @Injectable()
-export class KakaoStrategy extends PassportStrategy(Strategy, "kakao") {
+export class KakaoStrategy extends PassportStrategy(Strategy, 'kakao') {
   constructor(
     private readonly configService: ConfigService<Env, true>,
-    private readonly authService: AuthService
+    private readonly authService: AuthService,
   ) {
     const callbackURL =
-      configService.get("KAKAO_CALLBACK_URL", { infer: true }) ||
-      "/auth/kakao/callback";
+      configService.get('KAKAO_CALLBACK_URL', { infer: true }) ||
+      '/auth/kakao/callback';
 
     super({
-      clientID: configService.get("KAKAO_CLIENT_ID", { infer: true }) || "",
+      clientID: configService.get('KAKAO_CLIENT_ID', { infer: true }) || '',
       clientSecret:
-        configService.get("KAKAO_CLIENT_SECRET", { infer: true }) || "",
+        configService.get('KAKAO_CLIENT_SECRET', { infer: true }) || '',
       callbackURL,
     });
   }
@@ -28,10 +28,10 @@ export class KakaoStrategy extends PassportStrategy(Strategy, "kakao") {
     const kakaoAccount = _json?.kakao_account;
 
     const result = await this.authService.findOrCreateOAuthUser(
-      "KAKAO",
+      'KAKAO',
       id.toString(),
       kakaoAccount?.email || null,
-      displayName || kakaoAccount?.profile?.nickname || username || null
+      displayName || kakaoAccount?.profile?.nickname || username || null,
     );
 
     return result;

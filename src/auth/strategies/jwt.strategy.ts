@@ -1,9 +1,9 @@
-import { Injectable, UnauthorizedException } from "@nestjs/common";
-import { PassportStrategy } from "@nestjs/passport";
-import { ExtractJwt, Strategy } from "passport-jwt";
-import { ConfigService } from "@nestjs/config";
-import type { Env } from "../../config/env.schema";
-import { PrismaService } from "../../database/prisma.service";
+import { Injectable, UnauthorizedException } from '@nestjs/common';
+import { PassportStrategy } from '@nestjs/passport';
+import { ExtractJwt, Strategy } from 'passport-jwt';
+import { ConfigService } from '@nestjs/config';
+import type { Env } from '../../config/env.schema';
+import { PrismaService } from '../../database/prisma.service';
 
 export interface JwtPayload {
   sub: string; // user id
@@ -16,12 +16,12 @@ export interface JwtPayload {
 export class JwtStrategy extends PassportStrategy(Strategy) {
   constructor(
     private readonly configService: ConfigService<Env, true>,
-    private readonly prisma: PrismaService
+    private readonly prisma: PrismaService,
   ) {
     super({
       jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
       ignoreExpiration: false,
-      secretOrKey: configService.get("JWT_ACCESS_SECRET", { infer: true }),
+      secretOrKey: configService.get('JWT_ACCESS_SECRET', { infer: true }),
     });
   }
 
@@ -37,7 +37,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     });
 
     if (!user) {
-      throw new UnauthorizedException("사용자를 찾을 수 없습니다.");
+      throw new UnauthorizedException('사용자를 찾을 수 없습니다.');
     }
 
     return user;

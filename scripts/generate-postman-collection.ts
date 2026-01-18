@@ -1,6 +1,6 @@
-import { convert } from "openapi-to-postmanv2";
-import * as fs from "node:fs";
-import * as path from "node:path";
+import { convert } from 'openapi-to-postmanv2';
+import * as fs from 'node:fs';
+import * as path from 'node:path';
 
 /**
  * Swagger에서 생성한 OpenAPI JSON을 Postman 컬렉션으로 변환하는 스크립트
@@ -13,10 +13,10 @@ import * as path from "node:path";
 
 async function generatePostmanCollection() {
   const openApiUrl =
-    process.env.OPENAPI_URL || "http://localhost:3000/api-json";
+    process.env.OPENAPI_URL || 'http://localhost:3000/api-json';
   const outputPath =
     process.env.POSTMAN_OUTPUT_PATH ||
-    path.join(__dirname, "../postman/collection.json");
+    path.join(__dirname, '../postman/collection.json');
 
   try {
     console.log(`📥 OpenAPI 스펙 다운로드 중: ${openApiUrl}`);
@@ -25,24 +25,24 @@ async function generatePostmanCollection() {
     const response = await fetch(openApiUrl);
     if (!response.ok) {
       throw new Error(
-        `OpenAPI 스펙을 가져올 수 없습니다: ${response.statusText}\n서버가 실행 중인지 확인하세요: npm run start:dev`
+        `OpenAPI 스펙을 가져올 수 없습니다: ${response.statusText}\n서버가 실행 중인지 확인하세요: npm run start:dev`,
       );
     }
 
     const openApiSpec = await response.json();
 
-    console.log("🔄 Postman 컬렉션으로 변환 중...");
+    console.log('🔄 Postman 컬렉션으로 변환 중...');
 
     // OpenAPI를 Postman 컬렉션으로 변환
     const conversionResult = await convert(openApiSpec, {
-      folderStrategy: "Tags", // 태그별로 폴더 생성
-      requestParametersResolution: "Example", // 예시 값 사용
+      folderStrategy: 'Tags', // 태그별로 폴더 생성
+      requestParametersResolution: 'Example', // 예시 값 사용
       optimizeConversion: true,
     });
 
     if (!conversionResult.result) {
       throw new Error(
-        `변환 실패: ${conversionResult.reason || "알 수 없는 오류"}`
+        `변환 실패: ${conversionResult.reason || '알 수 없는 오류'}`,
       );
     }
 
@@ -50,36 +50,36 @@ async function generatePostmanCollection() {
     const collection = conversionResult.output[0].data;
     if (collection.variable) {
       collection.variable.push({
-        key: "baseUrl",
-        value: "http://localhost:3000",
-        type: "string",
+        key: 'baseUrl',
+        value: 'http://localhost:3000',
+        type: 'string',
       });
       collection.variable.push({
-        key: "accessToken",
-        value: "",
-        type: "string",
+        key: 'accessToken',
+        value: '',
+        type: 'string',
       });
       collection.variable.push({
-        key: "refreshToken",
-        value: "",
-        type: "string",
+        key: 'refreshToken',
+        value: '',
+        type: 'string',
       });
     } else {
       collection.variable = [
         {
-          key: "baseUrl",
-          value: "http://localhost:3000",
-          type: "string",
+          key: 'baseUrl',
+          value: 'http://localhost:3000',
+          type: 'string',
         },
         {
-          key: "accessToken",
-          value: "",
-          type: "string",
+          key: 'accessToken',
+          value: '',
+          type: 'string',
         },
         {
-          key: "refreshToken",
-          value: "",
-          type: "string",
+          key: 'refreshToken',
+          value: '',
+          type: 'string',
         },
       ];
     }
@@ -95,10 +95,10 @@ async function generatePostmanCollection() {
 
     console.log(`✅ Postman 컬렉션 생성 완료: ${outputPath}`);
     console.log(
-      `\n📋 사용 방법:\n1. Postman 열기\n2. Import 클릭\n3. ${outputPath} 파일 선택`
+      `\n📋 사용 방법:\n1. Postman 열기\n2. Import 클릭\n3. ${outputPath} 파일 선택`,
     );
   } catch (error) {
-    console.error("❌ 오류 발생:", error);
+    console.error('❌ 오류 발생:', error);
     process.exit(1);
   }
 }

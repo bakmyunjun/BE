@@ -2,10 +2,10 @@ import {
   Injectable,
   LoggerService as NestLoggerService,
   Optional,
-} from "@nestjs/common";
-import { ConfigService } from "@nestjs/config";
-import pino from "pino";
-import type { Env } from "../../config/env.schema";
+} from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
+import pino from 'pino';
+import type { Env } from '../../config/env.schema';
 
 /**
  * Pino 기반 Logger 서비스
@@ -16,23 +16,23 @@ export class LoggerService implements NestLoggerService {
   private readonly logger: pino.Logger;
 
   constructor(
-    @Optional() private readonly configService?: ConfigService<Env, true>
+    @Optional() private readonly configService?: ConfigService<Env, true>,
   ) {
     const nodeEnv =
-      configService?.get("NODE_ENV", { infer: true }) ||
+      configService?.get('NODE_ENV', { infer: true }) ||
       process.env.NODE_ENV ||
-      "development";
+      'development';
 
     this.logger = pino({
-      level: nodeEnv === "production" ? "info" : "debug",
+      level: nodeEnv === 'production' ? 'info' : 'debug',
       transport:
-        nodeEnv === "development"
+        nodeEnv === 'development'
           ? {
-              target: "pino-pretty",
+              target: 'pino-pretty',
               options: {
                 colorize: true,
-                translateTime: "yyyy-mm-dd HH:MM:ss",
-                ignore: "pid,hostname",
+                translateTime: 'yyyy-mm-dd HH:MM:ss',
+                ignore: 'pid,hostname',
               },
             }
           : undefined,
@@ -59,7 +59,7 @@ export class LoggerService implements NestLoggerService {
     message: string,
     trace?: string,
     context?: string,
-    meta?: Record<string, unknown>
+    meta?: Record<string, unknown>,
   ) {
     this.logger.error(
       {
@@ -67,7 +67,7 @@ export class LoggerService implements NestLoggerService {
         trace,
         ...meta,
       },
-      message
+      message,
     );
   }
 
@@ -95,7 +95,7 @@ export class LoggerService implements NestLoggerService {
     statusCode: number,
     responseTime: number,
     userId?: string,
-    meta?: Record<string, unknown>
+    meta?: Record<string, unknown>,
   ) {
     this.logger.info(
       {
@@ -107,7 +107,7 @@ export class LoggerService implements NestLoggerService {
         userId,
         ...meta,
       },
-      `${method} ${url} ${statusCode} - ${responseTime}ms`
+      `${method} ${url} ${statusCode} - ${responseTime}ms`,
     );
   }
 
@@ -118,7 +118,7 @@ export class LoggerService implements NestLoggerService {
     requestId: string,
     error: Error,
     context?: string,
-    meta?: Record<string, unknown>
+    meta?: Record<string, unknown>,
   ) {
     this.logger.error(
       {
@@ -131,7 +131,7 @@ export class LoggerService implements NestLoggerService {
         },
         ...meta,
       },
-      `Error: ${error.message}`
+      `Error: ${error.message}`,
     );
   }
 
@@ -146,7 +146,7 @@ export class LoggerService implements NestLoggerService {
     path: string,
     method: string,
     userId?: string,
-    meta?: Record<string, unknown>
+    meta?: Record<string, unknown>,
   ) {
     this.logger.error(
       {
@@ -159,7 +159,7 @@ export class LoggerService implements NestLoggerService {
         userId,
         ...meta,
       },
-      `HTTP ${statusCode} [${errorCode}] ${method} ${path}: ${message}`
+      `HTTP ${statusCode} [${errorCode}] ${method} ${path}: ${message}`,
     );
   }
 

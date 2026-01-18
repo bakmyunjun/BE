@@ -1,7 +1,7 @@
-import { Injectable, NestMiddleware } from "@nestjs/common";
-import { Request, Response, NextFunction } from "express";
-import pinoHttp from "pino-http";
-import { LoggerService } from "../logger/logger.service";
+import { Injectable, NestMiddleware } from '@nestjs/common';
+import { Request, Response, NextFunction } from 'express';
+import pinoHttp from 'pino-http';
+import { LoggerService } from '../logger/logger.service';
 
 /**
  * 요청 로깅 미들웨어
@@ -21,7 +21,7 @@ export class LoggingMiddleware implements NestMiddleware {
         // Request ID 확정: 헤더에 있으면 사용, 없으면 생성
         // 이 값이 request.id로 설정되어 이후 모든 레이어에서 사용됨
         const requestId =
-          (req.headers["x-request-id"] as string) ||
+          (req.headers['x-request-id'] as string) ||
           `req_${Date.now()}_${Math.random().toString(36).substring(7)}`;
 
         // request 객체에 저장 (Interceptor, Filter 등에서 사용)
@@ -36,10 +36,10 @@ export class LoggingMiddleware implements NestMiddleware {
         return `${req.method} ${req.url} ${res.statusCode} - ${error.message}`;
       },
       customAttributeKeys: {
-        req: "request",
-        res: "response",
-        err: "error",
-        responseTime: "responseTime",
+        req: 'request',
+        res: 'response',
+        err: 'error',
+        responseTime: 'responseTime',
       },
       customProps: (req: Request) => {
         // request.id는 이미 genReqId에서 설정되었으므로 사용만 함
@@ -57,8 +57,8 @@ export class LoggingMiddleware implements NestMiddleware {
           query: req.query,
           headers: {
             host: req.headers.host,
-            "user-agent": req.headers["user-agent"],
-            "content-type": req.headers["content-type"],
+            'user-agent': req.headers['user-agent'],
+            'content-type': req.headers['content-type'],
           },
         }),
         res: (res: Response) => ({

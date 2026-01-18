@@ -1,4 +1,4 @@
-import { ApiProperty, ApiPropertyOptional } from "@nestjs/swagger";
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 /**
  * 공통 응답 DTO
@@ -16,10 +16,10 @@ export class SuccessResponseDto<T = unknown> {
   data: T;
 
   @ApiProperty({
-    type: "object",
+    type: 'object',
     properties: {
-      requestId: { type: "string", example: "req_xxx" },
-      timestamp: { type: "string", example: "2026-01-05T00:00:00.000Z" },
+      requestId: { type: 'string', example: 'req_xxx' },
+      timestamp: { type: 'string', example: '2026-01-05T00:00:00.000Z' },
     },
   })
   meta: {
@@ -45,11 +45,11 @@ export class ErrorResponseDto {
   success: false;
 
   @ApiProperty({
-    type: "object",
+    type: 'object',
     properties: {
-      code: { type: "string", example: "VALIDATION_ERROR" },
-      message: { type: "string", example: "입력값 검증에 실패했습니다." },
-      details: { type: "object", additionalProperties: true },
+      code: { type: 'string', example: 'VALIDATION_ERROR' },
+      message: { type: 'string', example: '입력값 검증에 실패했습니다.' },
+      details: { type: 'object', additionalProperties: true },
     },
   })
   error: {
@@ -59,10 +59,10 @@ export class ErrorResponseDto {
   };
 
   @ApiProperty({
-    type: "object",
+    type: 'object',
     properties: {
-      requestId: { type: "string", example: "req_xxx" },
-      timestamp: { type: "string", example: "2026-01-05T00:00:00.000Z" },
+      requestId: { type: 'string', example: 'req_xxx' },
+      timestamp: { type: 'string', example: '2026-01-05T00:00:00.000Z' },
     },
   })
   meta: {
@@ -100,11 +100,7 @@ export class PaginationMetaDto {
   hasNext: boolean;
   hasPrev: boolean;
 
-  constructor(
-    number: number,
-    size: number,
-    totalItems: number,
-  ) {
+  constructor(number: number, size: number, totalItems: number) {
     this.number = number;
     this.size = size;
     this.totalItems = totalItems;
@@ -128,11 +124,7 @@ export class PaginatedResponseDto<T> {
     timestamp: string;
   };
 
-  constructor(
-    items: T[],
-    page: PaginationMetaDto,
-    requestId: string,
-  ) {
+  constructor(items: T[], page: PaginationMetaDto, requestId: string) {
     this.success = true;
     this.data = {
       items,
@@ -144,4 +136,3 @@ export class PaginatedResponseDto<T> {
     };
   }
 }
-

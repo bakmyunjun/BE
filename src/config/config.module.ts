@@ -7,9 +7,13 @@ import { validateEnv } from './env.schema';
     NestConfigModule.forRoot({
       isGlobal: true,
       validate: validateEnv,
-      envFilePath: [`.env.${process.env.NODE_ENV || 'development'}.local`, `.env.${process.env.NODE_ENV || 'development'}`, '.env.local', '.env'],
+      envFilePath: [
+        `.env.${process.env.NODE_ENV || 'development'}.local`,
+        `.env.${process.env.NODE_ENV || 'development'}`,
+        '.env.local',
+        '.env',
+      ],
     }),
   ],
 })
 export class ConfigModule {}
-

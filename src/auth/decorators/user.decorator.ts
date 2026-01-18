@@ -1,4 +1,4 @@
-import { createParamDecorator, ExecutionContext } from "@nestjs/common";
+import { createParamDecorator, ExecutionContext } from '@nestjs/common';
 
 export type UserPayload = {
   id: bigint;
@@ -24,4 +24,3 @@ export const User = createParamDecorator(
     return data ? user?.[data] : user;
   },
 );
-

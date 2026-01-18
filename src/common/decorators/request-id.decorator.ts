@@ -1,4 +1,4 @@
-import { createParamDecorator, ExecutionContext } from "@nestjs/common";
+import { createParamDecorator, ExecutionContext } from '@nestjs/common';
 
 /**
  * Request ID 데코레이터
@@ -7,11 +7,6 @@ import { createParamDecorator, ExecutionContext } from "@nestjs/common";
 export const RequestId = createParamDecorator(
   (_data: unknown, ctx: ExecutionContext): string => {
     const request = ctx.switchToHttp().getRequest();
-    return (
-      request.headers["x-request-id"] ||
-      request.id ||
-      "unknown"
-    );
+    return request.headers['x-request-id'] || request.id || 'unknown';
   },
 );
-
