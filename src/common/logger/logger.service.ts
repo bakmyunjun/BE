@@ -10,6 +10,7 @@ import type { Env } from '../../config/env.schema';
 /**
  * Pino 기반 Logger 서비스
  * 요청 단위 로깅 및 구조화된 로그 포맷 제공
+ * Better Stack (Logtail) 통합 지원
  */
 @Injectable()
 export class LoggerService implements NestLoggerService {
@@ -23,19 +24,37 @@ export class LoggerService implements NestLoggerService {
       process.env.NODE_ENV ||
       'development';
 
+    const logtailToken = configService?.get('LOGTAIL_SOURCE_TOKEN', {
+      infer: true,
+    });
+
+    // Transport 설정: development는 pino-pretty, production은 Better Stack
+    let transport: pino.TransportSingleOptions | undefined;
+
+    if (nodeEnv === 'development') {
+      // 개발 환경: 예쁜 콘솔 출력
+      transport = {
+        target: 'pino-pretty',
+        options: {
+          colorize: true,
+          translateTime: 'yyyy-mm-dd HH:MM:ss',
+          ignore: 'pid,hostname',
+        },
+      };
+    } else if (nodeEnv === 'production' && logtailToken) {
+      // 프로덕션 환경 + Logtail 토큰 있음: Better Stack으로 전송
+      transport = {
+        target: '@logtail/pino',
+        options: {
+          sourceToken: logtailToken,
+        },
+      };
+    }
+    // transport가 undefined면 표준 JSON 출력
+
     this.logger = pino({
       level: nodeEnv === 'production' ? 'info' : 'debug',
-      transport:
-        nodeEnv === 'development'
-          ? {
-              target: 'pino-pretty',
-              options: {
-                colorize: true,
-                translateTime: 'yyyy-mm-dd HH:MM:ss',
-                ignore: 'pid,hostname',
-              },
-            }
-          : undefined,
+      transport,
       formatters: {
         level: (label) => {
           return { level: label.toUpperCase() };
