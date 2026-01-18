@@ -79,7 +79,7 @@ model OAuthAuthorizationCode {
 model OAuthState {
   id           BigInt    @id @default(autoincrement())
   state        String    @unique
-  codeVerifier String // PKCE code_verifier (SHA256 해시 전 원본)
+  codeVerifier String? // PKCE code_verifier (GitHub는 미지원, optional)
   provider     String // "GITHUB" | "KAKAO"
   redirectUri  String? // 커스텀 리다이렉트 URI (선택적)
   expiresAt    DateTime

@@ -128,10 +128,10 @@ export class AuthService {
   }
 
   /**
-   * OAuth State 및 PKCE 생성
+   * OAuth State 생성 (PKCE 제거)
    * @param provider OAuth 제공자 ("GITHUB" | "KAKAO")
    * @param redirectUri 커스텀 리다이렉트 URI (선택적)
-   * @returns { state, codeChallenge } - state와 code_challenge 반환
+   * @returns { state, codeChallenge } - state 반환 (codeChallenge는 빈 문자열)
    */
   async generateOAuthState(
     provider: 'GITHUB' | 'KAKAO',
@@ -140,20 +140,18 @@ export class AuthService {
     // State 생성 (CSRF 방지)
     const state = randomBytes(32).toString('hex');
 
-    // PKCE: code_verifier 생성 (43-128자, URL-safe)
-    const codeVerifier = this.generateCodeVerifier();
+    // PKCE 사용 안 함 (GitHub, Kakao 둘 다)
+    const codeVerifier = undefined;
+    const codeChallenge = '';
 
-    // PKCE: code_challenge 생성 (SHA256 해시 후 base64url 인코딩)
-    const codeChallenge = this.generateCodeChallenge(codeVerifier);
-
-    // State와 code_verifier 저장 (10분 후 만료)
+    // State 저장 (10분 후 만료)
     const expiresAt = new Date();
     expiresAt.setMinutes(expiresAt.getMinutes() + 10);
 
     await this.prisma.oAuthState.create({
       data: {
         state,
-        codeVerifier, // 원본 verifier 저장 (콜백에서 검증용)
+        codeVerifier, // null
         provider,
         redirectUri, // 커스텀 리다이렉트 URI 저장
         expiresAt,
@@ -204,12 +202,12 @@ export class AuthService {
   }
 
   /**
-   * OAuth State 검증 및 PKCE 검증
+   * OAuth State 검증 (PKCE 제거)
    * @param state OAuth 콜백에서 받은 state
-   * @param codeVerifier PKCE code_verifier (프론트엔드에서 전달)
+   * @param codeVerifier 사용 안 함 (하위 호환성 유지용)
    * @returns 검증 성공 시 true, 실패 시 예외 발생
    */
-  async verifyOAuthState(state: string, codeVerifier: string): Promise<void> {
+  async verifyOAuthState(state: string, codeVerifier?: string): Promise<void> {
     const now = new Date();
 
     // State 조회 및 사용 처리 (원자적 연산)
@@ -225,21 +223,7 @@ export class AuthService {
     if (result.count === 0) {
       throw new BadRequestException('유효하지 않거나 만료된 state입니다.');
     }
-
-    // State 레코드 조회
-    const oauthState = await this.prisma.oAuthState.findUnique({
-      where: { state },
-    });
-
-    if (!oauthState) {
-      throw new BadRequestException('유효하지 않은 state입니다.');
-    }
-
-    // PKCE 검증: code_verifier 직접 비교
-    // 프론트엔드에서 전달한 code_verifier와 저장된 code_verifier가 일치해야 함
-    if (codeVerifier !== oauthState.codeVerifier) {
-      throw new BadRequestException('유효하지 않은 code_verifier입니다.');
-    }
+    // PKCE 검증 제거: state만 검증
   }
 
   /**
@@ -265,12 +249,12 @@ export class AuthService {
    * OAuth Authorization Code로 토큰 교환
    * @param code Authorization Code
    * @param state OAuth State (검증용)
-   * @param codeVerifier PKCE code_verifier (검증용)
+   * @param codeVerifier 사용 안 함 (하위 호환성 유지용)
    */
   async exchangeAuthorizationCode(
     code: string,
     state: string,
-    codeVerifier: string,
+    codeVerifier?: string,
   ): Promise<{
     user: {
       id: string;
@@ -279,7 +263,7 @@ export class AuthService {
     };
     tokens: { accessToken: string; refreshToken: string };
   }> {
-    // State 및 PKCE 검증
+    // State 검증 (PKCE 제거)
     await this.verifyOAuthState(state, codeVerifier);
     // Atomically mark code as used and retrieve it
     const now = new Date();
