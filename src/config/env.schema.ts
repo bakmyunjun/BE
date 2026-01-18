@@ -21,8 +21,6 @@ const envSchema = z.object({
     .string()
     .optional()
     .transform((val) => (val ? val.split(',').map((url) => url.trim()) : [])),
-  // Better Stack (Logtail) Source Token (로그 전송)
-  LOGTAIL_SOURCE_TOKEN: z.string().optional(),
   ENABLE_SWAGGER: z
     .string()
     .optional()
