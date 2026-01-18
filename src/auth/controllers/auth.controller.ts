@@ -202,11 +202,7 @@ export class AuthController {
   })
   @ApiResponse({ status: 400, description: '유효하지 않은 인증 코드' })
   async exchangeCode(@Body() dto: ExchangeCodeDto) {
-    return this.authService.exchangeAuthorizationCode(
-      dto.code,
-      dto.state,
-      dto.codeVerifier,
-    );
+    return this.authService.exchangeAuthorizationCode(dto.code, dto.state);
   }
 
   /**

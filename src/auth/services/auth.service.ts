@@ -128,10 +128,10 @@ export class AuthService {
   }
 
   /**
-   * OAuth State 생성 (PKCE 제거)
+   * OAuth State 생성
    * @param provider OAuth 제공자 ("GITHUB" | "KAKAO")
    * @param redirectUri 커스텀 리다이렉트 URI (선택적)
-   * @returns { state, codeChallenge } - state 반환 (codeChallenge는 빈 문자열)
+   * @returns { state, codeChallenge } - state 반환 (codeChallenge는 빈 문자열, 하위 호환성 유지)
    */
   async generateOAuthState(
     provider: 'GITHUB' | 'KAKAO',
@@ -140,10 +140,6 @@ export class AuthService {
     // State 생성 (CSRF 방지)
     const state = randomBytes(32).toString('hex');
 
-    // PKCE 사용 안 함 (GitHub, Kakao 둘 다)
-    const codeVerifier = undefined;
-    const codeChallenge = '';
-
     // State 저장 (10분 후 만료)
     const expiresAt = new Date();
     expiresAt.setMinutes(expiresAt.getMinutes() + 10);
@@ -151,14 +147,13 @@ export class AuthService {
     await this.prisma.oAuthState.create({
       data: {
         state,
-        codeVerifier, // null
         provider,
         redirectUri, // 커스텀 리다이렉트 URI 저장
         expiresAt,
       },
     });
 
-    return { state, codeChallenge };
+    return { state, codeChallenge: '' };
   }
 
   /**
@@ -202,12 +197,11 @@ export class AuthService {
   }
 
   /**
-   * OAuth State 검증 (PKCE 제거)
+   * OAuth State 검증
    * @param state OAuth 콜백에서 받은 state
-   * @param codeVerifier 사용 안 함 (하위 호환성 유지용)
-   * @returns 검증 성공 시 true, 실패 시 예외 발생
+   * @returns 검증 성공 시 void, 실패 시 예외 발생
    */
-  async verifyOAuthState(state: string, codeVerifier?: string): Promise<void> {
+  async verifyOAuthState(state: string): Promise<void> {
     const now = new Date();
 
     // State 조회 및 사용 처리 (원자적 연산)
@@ -223,7 +217,6 @@ export class AuthService {
     if (result.count === 0) {
       throw new BadRequestException('유효하지 않거나 만료된 state입니다.');
     }
-    // PKCE 검증 제거: state만 검증
   }
 
   /**
@@ -249,12 +242,10 @@ export class AuthService {
    * OAuth Authorization Code로 토큰 교환
    * @param code Authorization Code
    * @param state OAuth State (검증용)
-   * @param codeVerifier 사용 안 함 (하위 호환성 유지용)
    */
   async exchangeAuthorizationCode(
     code: string,
     state: string,
-    codeVerifier?: string,
   ): Promise<{
     user: {
       id: string;
@@ -263,8 +254,8 @@ export class AuthService {
     };
     tokens: { accessToken: string; refreshToken: string };
   }> {
-    // State 검증 (PKCE 제거)
-    await this.verifyOAuthState(state, codeVerifier);
+    // State 검증
+    await this.verifyOAuthState(state);
     // Atomically mark code as used and retrieve it
     const now = new Date();
     const result = await this.prisma.oAuthAuthorizationCode.updateMany({

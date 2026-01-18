@@ -272,16 +272,22 @@ describe('AuthService', () => {
       expect(result).toHaveProperty('state');
       expect(result).toHaveProperty('codeChallenge');
       expect(result.state).toBeTruthy();
-      expect(result.codeChallenge).toBeTruthy();
+      expect(result.codeChallenge).toBe(''); // PKCE 제거됨
       expect(mockPrismaService.oAuthState.create).toHaveBeenCalledWith({
         data: expect.objectContaining({
           state: expect.any(String),
-          codeVerifier: expect.any(String),
           provider: 'GITHUB',
           redirectUri: undefined,
           expiresAt: expect.any(Date),
         }),
       });
+      expect(mockPrismaService.oAuthState.create).not.toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            codeVerifier: expect.anything(),
+          }),
+        }),
+      );
     });
 
     it('redirectUri와 함께 State를 생성해야 함', async () => {
@@ -303,10 +309,10 @@ describe('AuthService', () => {
 
       expect(result).toHaveProperty('state');
       expect(result).toHaveProperty('codeChallenge');
+      expect(result.codeChallenge).toBe(''); // PKCE 제거됨
       expect(mockPrismaService.oAuthState.create).toHaveBeenCalledWith({
         data: expect.objectContaining({
           state: expect.any(String),
-          codeVerifier: expect.any(String),
           provider: 'GITHUB',
           redirectUri,
           expiresAt: expect.any(Date),

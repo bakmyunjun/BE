@@ -1,5 +1,5 @@
-import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsString, IsNotEmpty, IsOptional } from 'class-validator';
+import { ApiProperty } from '@nestjs/swagger';
+import { IsString, IsNotEmpty } from 'class-validator';
 
 /**
  * OAuth 토큰 교환 요청 DTO
@@ -20,14 +20,6 @@ export class ExchangeCodeDto {
   @IsString()
   @IsNotEmpty()
   state: string;
-
-  @ApiPropertyOptional({
-    description: 'PKCE code_verifier (GitHub는 미지원, optional)',
-    example: 'dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk',
-  })
-  @IsOptional()
-  @IsString()
-  codeVerifier?: string;
 }
 
 /**
