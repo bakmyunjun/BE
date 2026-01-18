@@ -251,7 +251,8 @@ export class AuthController {
             'GITHUB_CLIENT_ID가 설정되지 않았습니다.',
           );
         }
-        oauthUrl = `https://github.com/login/oauth/authorize?client_id=${clientId}&redirect_uri=${encodeURIComponent(callbackUrl)}&scope=user:email&state=${state}&code_challenge=${codeChallenge}&code_challenge_method=S256`;
+        // GitHub OAuth는 PKCE를 지원하지 않음 (code_challenge 제거)
+        oauthUrl = `https://github.com/login/oauth/authorize?client_id=${clientId}&redirect_uri=${encodeURIComponent(callbackUrl)}&scope=user:email&state=${state}`;
       } else {
         // KAKAO
         const clientId = this.configService.get('KAKAO_CLIENT_ID', {
@@ -266,7 +267,8 @@ export class AuthController {
             'KAKAO_CLIENT_ID가 설정되지 않았습니다.',
           );
         }
-        oauthUrl = `https://kauth.kakao.com/oauth/authorize?client_id=${clientId}&redirect_uri=${encodeURIComponent(callbackUrl)}&response_type=code&state=${state}&code_challenge=${codeChallenge}&code_challenge_method=S256`;
+        // Kakao OAuth도 PKCE를 지원하지 않음 (code_challenge 제거)
+        oauthUrl = `https://kauth.kakao.com/oauth/authorize?client_id=${clientId}&redirect_uri=${encodeURIComponent(callbackUrl)}&response_type=code&state=${state}`;
       }
 
       return {

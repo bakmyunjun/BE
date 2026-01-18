@@ -67,7 +67,7 @@ describe('AuthController (e2e)', () => {
       expect(response.body.url).toContain('github.com/login/oauth/authorize');
       expect(response.body.url).toContain('client_id=');
       expect(response.body.url).toContain('state=');
-      expect(response.body.url).toContain('code_challenge=');
+      // GitHub OAuth는 PKCE를 지원하지 않으므로 code_challenge 제거
     });
 
     it('허용된 redirect_uri로 OAuth 시작 가능', async () => {
@@ -81,7 +81,7 @@ describe('AuthController (e2e)', () => {
       // State에서 redirectUri가 저장되었는지 확인
       const stateMatch = response.body.url.match(/state=([^&]+)/);
       expect(stateMatch).toBeTruthy();
-      
+
       const state = stateMatch[1];
       const stateRecord = await prismaService.oAuthState.findUnique({
         where: { state },
@@ -95,7 +95,7 @@ describe('AuthController (e2e)', () => {
       await request(app.getHttpServer())
         .get(`/auth/github?redirect_uri=${encodeURIComponent(redirectUri)}`)
         .expect(500);
-      
+
       // 에러가 발생했는지만 확인 (로그에 에러 메시지가 출력됨)
     });
 
@@ -104,7 +104,7 @@ describe('AuthController (e2e)', () => {
       await request(app.getHttpServer())
         .get(`/auth/github?redirect_uri=${encodeURIComponent(redirectUri)}`)
         .expect(500);
-      
+
       // 에러가 발생했는지만 확인 (로그에 에러 메시지가 출력됨)
     });
   });
@@ -112,7 +112,7 @@ describe('AuthController (e2e)', () => {
   describe('OAuth State 관리 (통합 테스트)', () => {
     it('State에 redirectUri가 저장되고 조회됨', async () => {
       const redirectUri = 'http://localhost:3000/auth/callback';
-      
+
       // OAuth 시작 요청
       const response = await request(app.getHttpServer())
         .get(`/auth/github?redirect_uri=${encodeURIComponent(redirectUri)}`)
