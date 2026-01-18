@@ -7,12 +7,6 @@ import { PrismaService } from '../src/database/prisma.service';
 import { GitHubStrategy } from '../src/auth/strategies/github.strategy';
 import { KakaoStrategy } from '../src/auth/strategies/kakao.strategy';
 
-// CI 환경을 위한 환경변수 설정
-process.env.GITHUB_CLIENT_ID = process.env.GITHUB_CLIENT_ID || 'test-client-id';
-process.env.GITHUB_CLIENT_SECRET = process.env.GITHUB_CLIENT_SECRET || 'test-client-secret';
-process.env.GITHUB_CALLBACK_URL = process.env.GITHUB_CALLBACK_URL || 'http://localhost:3001/auth/github/callback';
-process.env.OAUTH_ALLOWED_REDIRECT_URLS = process.env.OAUTH_ALLOWED_REDIRECT_URLS || 'http://localhost:3000,https://bakmyunjun.site';
-
 describe('AuthController (e2e)', () => {
   let app: INestApplication<App>;
   let prismaService: PrismaService;
