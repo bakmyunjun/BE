@@ -253,6 +253,10 @@ export class AuthController {
         }
         // GitHub OAuth는 PKCE를 지원하지 않음 (code_challenge 제거)
         oauthUrl = `https://github.com/login/oauth/authorize?client_id=${clientId}&redirect_uri=${encodeURIComponent(callbackUrl)}&scope=user:email&state=${state}`;
+        this.logger.log(
+          `GitHub OAuth URL: ${oauthUrl}`,
+          `AuthController.${provider}Auth`,
+        );
       } else {
         // KAKAO
         const clientId = this.configService.get('KAKAO_CLIENT_ID', {
