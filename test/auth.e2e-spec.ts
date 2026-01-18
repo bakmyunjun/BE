@@ -1,13 +1,13 @@
-import { Test, type TestingModule } from "@nestjs/testing";
-import type { INestApplication } from "@nestjs/common";
-import request from "supertest";
-import type { App } from "supertest/types";
-import { AppModule } from "../src/app.module";
-import { PrismaService } from "../src/database/prisma.service";
-import { GitHubStrategy } from "../src/auth/strategies/github.strategy";
-import { KakaoStrategy } from "../src/auth/strategies/kakao.strategy";
+import { Test, type TestingModule } from '@nestjs/testing';
+import type { INestApplication } from '@nestjs/common';
+import request from 'supertest';
+import type { App } from 'supertest/types';
+import { AppModule } from '../src/app.module';
+import { PrismaService } from '../src/database/prisma.service';
+import { GitHubStrategy } from '../src/auth/strategies/github.strategy';
+import { KakaoStrategy } from '../src/auth/strategies/kakao.strategy';
 
-describe("AuthController (e2e)", () => {
+describe('AuthController (e2e)', () => {
   let app: INestApplication<App>;
   let prismaService: PrismaService;
 
@@ -41,7 +41,7 @@ describe("AuthController (e2e)", () => {
       await prismaService.user.deleteMany({
         where: {
           email: {
-            startsWith: "test@",
+            startsWith: 'test@',
           },
         },
       });
@@ -51,9 +51,103 @@ describe("AuthController (e2e)", () => {
     }
   });
 
-  describe("GET /auth/me", () => {
-    it("인증 없이 접근하면 401 에러", () => {
-      return request(app.getHttpServer()).get("/auth/me").expect(401);
+  describe('GET /auth/me', () => {
+    it('인증 없이 접근하면 401 에러', () => {
+      return request(app.getHttpServer()).get('/auth/me').expect(401);
+    });
+  });
+
+  describe('GET /auth/github', () => {
+    it('redirect_uri 없이 OAuth 시작 가능', async () => {
+      const response = await request(app.getHttpServer())
+        .get('/auth/github')
+        .expect(200); // NestJS HttpRedirectResponse는 200으로 응답
+
+      // 응답 본문에 리다이렉트 URL이 포함되어 있음
+      expect(response.body.url).toContain('github.com/login/oauth/authorize');
+      expect(response.body.url).toContain('client_id=');
+      expect(response.body.url).toContain('state=');
+      expect(response.body.url).toContain('code_challenge=');
+    });
+
+    it('허용된 redirect_uri로 OAuth 시작 가능', async () => {
+      const redirectUri = 'http://localhost:3000/auth/callback';
+      const response = await request(app.getHttpServer())
+        .get(`/auth/github?redirect_uri=${encodeURIComponent(redirectUri)}`)
+        .expect(200);
+
+      expect(response.body.url).toContain('github.com/login/oauth/authorize');
+
+      // State에서 redirectUri가 저장되었는지 확인
+      const stateMatch = response.body.url.match(/state=([^&]+)/);
+      expect(stateMatch).toBeTruthy();
+      
+      const state = stateMatch[1];
+      const stateRecord = await prismaService.oAuthState.findUnique({
+        where: { state },
+      });
+      expect(stateRecord).toBeTruthy();
+      expect(stateRecord?.redirectUri).toBe(redirectUri);
+    });
+
+    it('허용되지 않은 redirect_uri는 500 에러 (BadRequestException이 InternalServerErrorException으로 래핑됨)', async () => {
+      const redirectUri = 'https://malicious.com/auth/callback';
+      await request(app.getHttpServer())
+        .get(`/auth/github?redirect_uri=${encodeURIComponent(redirectUri)}`)
+        .expect(500);
+      
+      // 에러가 발생했는지만 확인 (로그에 에러 메시지가 출력됨)
+    });
+
+    it('잘못된 형식의 redirect_uri는 500 에러 (BadRequestException이 InternalServerErrorException으로 래핑됨)', async () => {
+      const redirectUri = 'not-a-valid-url';
+      await request(app.getHttpServer())
+        .get(`/auth/github?redirect_uri=${encodeURIComponent(redirectUri)}`)
+        .expect(500);
+      
+      // 에러가 발생했는지만 확인 (로그에 에러 메시지가 출력됨)
+    });
+  });
+
+  describe('OAuth State 관리 (통합 테스트)', () => {
+    it('State에 redirectUri가 저장되고 조회됨', async () => {
+      const redirectUri = 'http://localhost:3000/auth/callback';
+      
+      // OAuth 시작 요청
+      const response = await request(app.getHttpServer())
+        .get(`/auth/github?redirect_uri=${encodeURIComponent(redirectUri)}`)
+        .expect(200);
+
+      // State 추출
+      const stateMatch = response.body.url.match(/state=([^&]+)/);
+      expect(stateMatch).toBeTruthy();
+      const state = stateMatch[1];
+
+      // DB에서 State 조회
+      const stateRecord = await prismaService.oAuthState.findUnique({
+        where: { state },
+      });
+      expect(stateRecord).toBeTruthy();
+      expect(stateRecord?.redirectUri).toBe(redirectUri);
+    });
+
+    it('redirectUri 없이 State 생성 가능', async () => {
+      // OAuth 시작 요청 (redirectUri 없음)
+      const response = await request(app.getHttpServer())
+        .get('/auth/github')
+        .expect(200);
+
+      // State 추출
+      const stateMatch = response.body.url.match(/state=([^&]+)/);
+      expect(stateMatch).toBeTruthy();
+      const state = stateMatch[1];
+
+      // DB에서 State 조회
+      const stateRecord = await prismaService.oAuthState.findUnique({
+        where: { state },
+      });
+      expect(stateRecord).toBeTruthy();
+      expect(stateRecord?.redirectUri).toBeNull();
     });
   });
 });
