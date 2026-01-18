@@ -5,6 +5,7 @@ import {
   Get,
   UseGuards,
   Req,
+  Res,
   HttpCode,
   HttpStatus,
   InternalServerErrorException,
@@ -18,7 +19,7 @@ import {
   ApiBearerAuth,
   ApiBody,
 } from '@nestjs/swagger';
-import type { Request } from 'express';
+import type { Request, Response } from 'express';
 import type { RequestWithId } from '../../types/express';
 import { ConfigService } from '@nestjs/config';
 import { AuthService } from '../services/auth.service';
@@ -113,8 +114,9 @@ export class AuthController {
    */
   @Public()
   @Get('github')
-  async githubAuth(@Req() req: RequestWithId): Promise<HttpRedirectResponse> {
-    return this.handleOAuthStart(req, 'GITHUB');
+  async githubAuth(@Req() req: RequestWithId, @Res() res: Response): Promise<void> {
+    const result = await this.handleOAuthStart(req, 'GITHUB');
+    res.redirect(result.url);
   }
 
   /**
@@ -125,8 +127,10 @@ export class AuthController {
   @UseGuards(GitHubAuthGuard)
   async githubCallback(
     @Req() req: RequestWithId,
-  ): Promise<HttpRedirectResponse> {
-    return this.handleOAuthCallback(req, 'github');
+    @Res() res: Response,
+  ): Promise<void> {
+    const result = await this.handleOAuthCallback(req, 'github');
+    res.redirect(result.url);
   }
 
   /**
@@ -135,8 +139,9 @@ export class AuthController {
    */
   @Public()
   @Get('kakao')
-  async kakaoAuth(@Req() req: RequestWithId): Promise<HttpRedirectResponse> {
-    return this.handleOAuthStart(req, 'KAKAO');
+  async kakaoAuth(@Req() req: RequestWithId, @Res() res: Response): Promise<void> {
+    const result = await this.handleOAuthStart(req, 'KAKAO');
+    res.redirect(result.url);
   }
 
   /**
@@ -147,8 +152,10 @@ export class AuthController {
   @UseGuards(KakaoAuthGuard)
   async kakaoCallback(
     @Req() req: RequestWithId,
-  ): Promise<HttpRedirectResponse> {
-    return this.handleOAuthCallback(req, 'kakao');
+    @Res() res: Response,
+  ): Promise<void> {
+    const result = await this.handleOAuthCallback(req, 'kakao');
+    res.redirect(result.url);
   }
 
   /**
