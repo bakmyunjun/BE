@@ -61,12 +61,13 @@ describe('AuthController (e2e)', () => {
     it('redirect_uri 없이 OAuth 시작 가능', async () => {
       const response = await request(app.getHttpServer())
         .get('/auth/github')
-        .expect(200); // NestJS HttpRedirectResponse는 200으로 응답
+        .expect(302); // 실제 302 리다이렉트
 
-      // 응답 본문에 리다이렉트 URL이 포함되어 있음
-      expect(response.body.url).toContain('github.com/login/oauth/authorize');
-      expect(response.body.url).toContain('client_id=');
-      expect(response.body.url).toContain('state=');
+      // Location 헤더에 리다이렉트 URL이 포함되어 있음
+      const redirectUrl = response.headers.location;
+      expect(redirectUrl).toContain('github.com/login/oauth/authorize');
+      expect(redirectUrl).toContain('client_id=');
+      expect(redirectUrl).toContain('state=');
       // GitHub OAuth는 PKCE를 지원하지 않으므로 code_challenge 제거
     });
 
@@ -74,20 +75,23 @@ describe('AuthController (e2e)', () => {
       const redirectUri = 'http://localhost:3000/auth/callback';
       const response = await request(app.getHttpServer())
         .get(`/auth/github?redirect_uri=${encodeURIComponent(redirectUri)}`)
-        .expect(200);
+        .expect(302);
 
-      expect(response.body.url).toContain('github.com/login/oauth/authorize');
+      const redirectUrl = response.headers.location;
+      expect(redirectUrl).toContain('github.com/login/oauth/authorize');
 
       // State에서 redirectUri가 저장되었는지 확인
-      const stateMatch = response.body.url.match(/state=([^&]+)/);
+      const stateMatch = redirectUrl.match(/state=([^&]+)/);
       expect(stateMatch).toBeTruthy();
+      if (!stateMatch) return; // TypeScript null check
 
       const state = stateMatch[1];
       const stateRecord = await prismaService.oAuthState.findUnique({
         where: { state },
       });
       expect(stateRecord).toBeTruthy();
-      expect(stateRecord?.redirectUri).toBe(redirectUri);
+      // biome-ignore lint/suspicious/noExplicitAny: Prisma 타입이 redirectUri를 인식하지 못함
+      expect((stateRecord as any)?.redirectUri).toBe(redirectUri);
     });
 
     it('허용되지 않은 redirect_uri는 500 에러 (BadRequestException이 InternalServerErrorException으로 래핑됨)', async () => {
@@ -116,11 +120,13 @@ describe('AuthController (e2e)', () => {
       // OAuth 시작 요청
       const response = await request(app.getHttpServer())
         .get(`/auth/github?redirect_uri=${encodeURIComponent(redirectUri)}`)
-        .expect(200);
+        .expect(302);
 
       // State 추출
-      const stateMatch = response.body.url.match(/state=([^&]+)/);
+      const redirectUrl = response.headers.location;
+      const stateMatch = redirectUrl.match(/state=([^&]+)/);
       expect(stateMatch).toBeTruthy();
+      if (!stateMatch) return; // TypeScript null check
       const state = stateMatch[1];
 
       // DB에서 State 조회
@@ -128,18 +134,21 @@ describe('AuthController (e2e)', () => {
         where: { state },
       });
       expect(stateRecord).toBeTruthy();
-      expect(stateRecord?.redirectUri).toBe(redirectUri);
+      // biome-ignore lint/suspicious/noExplicitAny: Prisma 타입이 redirectUri를 인식하지 못함
+      expect((stateRecord as any)?.redirectUri).toBe(redirectUri);
     });
 
     it('redirectUri 없이 State 생성 가능', async () => {
       // OAuth 시작 요청 (redirectUri 없음)
       const response = await request(app.getHttpServer())
         .get('/auth/github')
-        .expect(200);
+        .expect(302);
 
       // State 추출
-      const stateMatch = response.body.url.match(/state=([^&]+)/);
+      const redirectUrl = response.headers.location;
+      const stateMatch = redirectUrl.match(/state=([^&]+)/);
       expect(stateMatch).toBeTruthy();
+      if (!stateMatch) return; // TypeScript null check
       const state = stateMatch[1];
 
       // DB에서 State 조회
@@ -147,7 +156,8 @@ describe('AuthController (e2e)', () => {
         where: { state },
       });
       expect(stateRecord).toBeTruthy();
-      expect(stateRecord?.redirectUri).toBeNull();
+      // biome-ignore lint/suspicious/noExplicitAny: Prisma 타입이 redirectUri를 인식하지 못함
+      expect((stateRecord as any)?.redirectUri).toBeNull();
     });
   });
 });
