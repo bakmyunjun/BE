@@ -75,6 +75,21 @@ model OAuthAuthorizationCode {
   @@index([userId])
 }
 
+// OAuth State 및 PKCE 모델 (CSRF 방지 및 보안 강화)
+model OAuthState {
+  id           BigInt    @id @default(autoincrement())
+  state        String    @unique
+  codeVerifier String // PKCE code_verifier (SHA256 해시 전 원본)
+  provider     String // "GITHUB" | "KAKAO"
+  redirectUri  String? // 커스텀 리다이렉트 URI (선택적)
+  expiresAt    DateTime
+  usedAt       DateTime?
+  createdAt    DateTime  @default(now())
+
+  @@index([state, expiresAt])
+  @@index([provider, expiresAt])
+}
+
 // Interview Session 모델
 enum InterviewSessionStatus {
   in_progress
