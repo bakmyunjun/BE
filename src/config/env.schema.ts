@@ -1,9 +1,9 @@
-import { z } from "zod";
+import { z } from 'zod';
 
 const envSchema = z.object({
   NODE_ENV: z
-    .enum(["development", "production", "test"])
-    .default("development"),
+    .enum(['development', 'production', 'test'])
+    .default('development'),
   PORT: z.coerce.number().int().positive().default(3000),
   DATABASE_URL: z.string().url(),
   REDIS_URL: z.string().url().optional(),
@@ -16,10 +16,15 @@ const envSchema = z.object({
   KAKAO_CLIENT_SECRET: z.string().optional(),
   KAKAO_CALLBACK_URL: z.string().optional(),
   OAUTH_REDIRECT_URL: z.string().url().optional(),
+  // OAuth 리다이렉트 허용 URL 목록 (쉼표로 구분)
+  OAUTH_ALLOWED_REDIRECT_URLS: z
+    .string()
+    .optional()
+    .transform((val) => (val ? val.split(',').map((url) => url.trim()) : [])),
   ENABLE_SWAGGER: z
     .string()
     .optional()
-    .transform((val) => val === "true" || val === "1"),
+    .transform((val) => val === 'true' || val === '1'),
 });
 
 export type Env = z.infer<typeof envSchema>;
@@ -30,8 +35,8 @@ export function validateEnv(config: Record<string, unknown>): Env {
   if (!parsed.success) {
     throw new Error(
       `환경 변수 검증 실패: ${parsed.error.errors
-        .map((e) => `${e.path.join(".")}: ${e.message}`)
-        .join(", ")}`
+        .map((e) => `${e.path.join('.')}: ${e.message}`)
+        .join(', ')}`,
     );
   }
 
