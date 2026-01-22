@@ -12,9 +12,16 @@ import {
   AllExceptionsFilter,
 } from './common/filters/http-exception.filter';
 import { LoggingMiddleware } from './common/middleware/logging.middleware';
+import { InterviewModule } from './interview/interview.module';
 
 @Module({
-  imports: [ConfigModule, DatabaseModule, AuthModule, LoggerModule],
+  imports: [
+    ConfigModule,
+    DatabaseModule,
+    AuthModule,
+    LoggerModule,
+    InterviewModule,
+  ],
   controllers: [AppController],
   providers: [
     AppService,

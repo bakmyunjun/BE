@@ -21,7 +21,7 @@ async function bootstrap() {
       tracesSampleRate: process.env.NODE_ENV === 'production' ? 0.1 : 1.0,
       profilesSampleRate: process.env.NODE_ENV === 'production' ? 0.1 : 1.0,
       integrations: [
-        nodeProfilingIntegration(),
+        // nodeProfilingIntegration(), // Temporarily disabled due to native module issues
         Sentry.prismaIntegration(),
       ],
     });

@@ -6,7 +6,13 @@ process.env.NODE_ENV = 'development';
 
 // OAuth 설정
 process.env.GITHUB_CLIENT_ID = process.env.GITHUB_CLIENT_ID || 'test-client-id';
-process.env.GITHUB_CLIENT_SECRET = process.env.GITHUB_CLIENT_SECRET || 'test-client-secret';
-process.env.GITHUB_CALLBACK_URL = process.env.GITHUB_CALLBACK_URL || 'http://localhost:3001/auth/github/callback';
-process.env.OAUTH_ALLOWED_REDIRECT_URLS = process.env.OAUTH_ALLOWED_REDIRECT_URLS || 'http://localhost:3000,https://bakmyunjun.site';
-process.env.OAUTH_REDIRECT_URL = process.env.OAUTH_REDIRECT_URL || 'http://localhost:3000/auth/callback';
+process.env.GITHUB_CLIENT_SECRET =
+  process.env.GITHUB_CLIENT_SECRET || 'test-client-secret';
+process.env.GITHUB_CALLBACK_URL =
+  process.env.GITHUB_CALLBACK_URL ||
+  'http://localhost:3001/auth/github/callback';
+process.env.OAUTH_ALLOWED_REDIRECT_URLS =
+  process.env.OAUTH_ALLOWED_REDIRECT_URLS ||
+  'http://localhost:3000,https://bakmyunjun.site';
+process.env.OAUTH_REDIRECT_URL =
+  process.env.OAUTH_REDIRECT_URL || 'http://localhost:3000/auth/callback';

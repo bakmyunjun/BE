@@ -21,12 +21,19 @@ const envSchema = z.object({
     .string()
     .optional()
     .transform((val) => (val ? val.split(',').map((url) => url.trim()) : [])),
-  // Sentry DSN (에러 로깅)
-  SENTRY_DSN: z.string().url().optional(),
+  // Sentry DSN (에러 로깅) - 빈 문자열 또는 유효한 URL
+  SENTRY_DSN: z
+    .string()
+    .optional()
+    .refine((val) => !val || val.startsWith('https://'), {
+      message: 'SENTRY_DSN must be a valid URL or empty',
+    }),
   ENABLE_SWAGGER: z
     .string()
     .optional()
     .transform((val) => val === 'true' || val === '1'),
+  // Upstage Solar API Key
+  UPSTAGE_API_KEY: z.string().min(1, 'UPSTAGE_API_KEY is required'),
 });
 
 export type Env = z.infer<typeof envSchema>;

@@ -399,4 +399,64 @@ export class AuthService {
       },
     };
   }
+
+  /**
+   * 테스트용 토큰 발급 (개발 환경 전용)
+   * 실제 DB에 사용자를 생성하지 않고 가상의 JWT 토큰을 발급합니다.
+   */
+  async generateDevToken(
+    email?: string,
+    nickname?: string,
+  ): Promise<{
+    user: { id: string; email: string; nickname: string };
+    tokens: { accessToken: string; refreshToken: string };
+  }> {
+    // 테스트용 고정 사용자 ID (매우 큰 숫자로 실제 사용자 ID와 충돌 방지)
+    const testUserId = BigInt(999999);
+    const testEmail = email || 'test@example.com';
+    const testNickname = nickname || 'tester';
+
+    // JWT 토큰 생성
+    const payload: UserPayload = {
+      id: testUserId,
+      email: testEmail,
+      nickname: testNickname,
+    };
+
+    const accessToken = this.jwtService.sign(
+      {
+        sub: payload.id.toString(),
+        email: payload.email,
+        nickname: payload.nickname,
+      },
+      {
+        secret: this.configService.get('JWT_ACCESS_SECRET', { infer: true }),
+        expiresIn: '1d', // 개발용이므로 길게 설정
+      },
+    );
+
+    const refreshToken = this.jwtService.sign(
+      {
+        sub: payload.id.toString(),
+        email: payload.email,
+        nickname: payload.nickname,
+      },
+      {
+        secret: this.configService.get('JWT_REFRESH_SECRET', { infer: true }),
+        expiresIn: '7d',
+      },
+    );
+
+    return {
+      user: {
+        id: testUserId.toString(),
+        email: testEmail,
+        nickname: testNickname,
+      },
+      tokens: {
+        accessToken,
+        refreshToken,
+      },
+    };
+  }
 }

@@ -12,6 +12,9 @@ export class SuccessResponseDto<T = unknown> {
   @ApiProperty({ example: true })
   success: true;
 
+  @ApiProperty({ example: 'SUCCESS', description: '응답 코드' })
+  code: string;
+
   @ApiProperty()
   data: T;
 
@@ -27,8 +30,9 @@ export class SuccessResponseDto<T = unknown> {
     timestamp: string;
   };
 
-  constructor(data: T, requestId: string) {
+  constructor(data: T, requestId: string, code = 'SUCCESS') {
     this.success = true;
+    this.code = code;
     this.data = data;
     this.meta = {
       requestId,

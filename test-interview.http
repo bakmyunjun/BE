@@ -1,0 +1,143 @@
+###
+# 인터뷰 API 테스트
+# VS Code의 REST Client 확장을 사용하거나, 아래 curl 명령어를 터미널에서 실행하세요
+###
+
+@baseUrl = http://localhost:3000
+@accessToken = YOUR_JWT_ACCESS_TOKEN_HERE
+
+### 0. 테스트용 토큰 발급 (개발 환경 전용) ⭐ 먼저 실행하세요!
+# Docker나 OAuth 설정 없이 바로 테스트할 수 있습니다
+POST {{baseUrl}}/auth/dev/token
+Content-Type: application/json
+
+{
+  "email": "test@example.com",
+  "nickname": "tester"
+}
+
+### 응답에서 accessToken을 복사하여 위의 @accessToken 변수에 붙여넣으세요
+### 예: @accessToken = eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+
+###
+
+### 1. 면접 생성 및 시작 (첫 질문 반환)
+# 위에서 받은 accessToken을 사용합니다
+
+POST {{baseUrl}}/interviews
+Content-Type: application/json
+Authorization: Bearer {{accessToken}}
+
+{
+  "title": "프론트엔드 모의면접",
+  "mainTopicId": "frontend",
+  "subTopicIds": ["react", "network"]
+}
+
+### 응답 예시:
+# {
+#   "success": true,
+#   "data": {
+#     "interviewId": "intv_123",
+#     "title": "프론트엔드 모의면접",
+#     "mainTopicId": "frontend",
+#     "subTopicIds": ["react", "network"],
+#     "status": "in_progress",
+#     "currentTurnIndex": 1,
+#     "question": {
+#       "questionId": "q_1234567890_1",
+#       "text": "React의 Virtual DOM이 무엇인지 설명해주세요."
+#     }
+#   },
+#   "requestId": "req_1234567890"
+# }
+
+###
+
+### 2. 턴 제출 및 다음 질문 생성
+# 위에서 받은 interviewId를 사용하세요
+@interviewId = intv_123
+
+POST {{baseUrl}}/interviews/{{interviewId}}/turns
+Content-Type: application/json
+Authorization: Bearer {{accessToken}}
+
+{
+  "answerText": "React의 Virtual DOM은 실제 DOM의 경량 복사본으로, 메모리에 존재하는 JavaScript 객체입니다. React는 상태가 변경될 때 Virtual DOM을 업데이트하고, 이전 Virtual DOM과 비교하여 실제로 변경된 부분만 실제 DOM에 반영합니다. 이를 통해 DOM 조작을 최소화하여 성능을 향상시킵니다.",
+  "turnIndex": 1,
+  "answerDuration": 30.5,
+  "faceMetrics": {
+    "avgExpressionScore": 0.85,
+    "detectedFrames": 120,
+    "expressionDistribution": {
+      "neutral": 0.6,
+      "smile": 0.3,
+      "frown": 0.1
+    }
+  },
+  "voiceMetrics": {
+    "avgPitch": 180.5,
+    "avgVolume": 0.65,
+    "speakingRate": 1.2,
+    "timeDistribution": {
+      "pause": 2.5,
+      "speaking": 27.5
+    }
+  }
+}
+
+### 응답 예시:
+# {
+#   "success": true,
+#   "data": {
+#     "turnIndex": 1,
+#     "isFinished": false,
+#     "nextQuestion": {
+#       "questionId": "q_1234567891_2",
+#       "text": "Virtual DOM의 diffing 알고리즘이 어떻게 동작하는지 설명해주세요."
+#     }
+#   },
+#   "requestId": "req_1234567891"
+# }
+
+###
+
+### 3. 최소한의 데이터로 턴 제출 (metrics 없이)
+
+POST {{baseUrl}}/interviews/{{interviewId}}/turns
+Content-Type: application/json
+Authorization: Bearer {{accessToken}}
+
+{
+  "answerText": "diffing 알고리즘은 이전 Virtual DOM 트리와 새로운 Virtual DOM 트리를 비교하여 변경된 노드만 찾아냅니다. React는 O(n) 복잡도로 이를 수행하며, 같은 타입의 컴포넌트는 같은 트리 구조를 가질 것이라고 가정하여 효율적으로 비교합니다.",
+  "turnIndex": 2,
+  "answerDuration": 25.0
+}
+
+###
+
+#######################################
+# curl 명령어 예시
+#######################################
+
+### 1. 면접 생성 (curl)
+# curl -X POST http://localhost:3000/interviews \
+#   -H "Content-Type: application/json" \
+#   -H "Authorization: Bearer YOUR_JWT_ACCESS_TOKEN_HERE" \
+#   -d '{
+#     "title": "프론트엔드 모의면접",
+#     "mainTopicId": "frontend",
+#     "subTopicIds": ["react", "network"]
+#   }'
+
+### 2. 턴 제출 (curl)
+# curl -X POST http://localhost:3000/interviews/intv_123/turns \
+#   -H "Content-Type: application/json" \
+#   -H "Authorization: Bearer YOUR_JWT_ACCESS_TOKEN_HERE" \
+#   -d '{
+#     "answerText": "React의 Virtual DOM은...",
+#     "turnIndex": 1,
+#     "answerDuration": 30.5
+#   }'
+
+###

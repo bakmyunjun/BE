@@ -108,6 +108,79 @@ export class AuthController {
   }
 
   /**
+   * 테스트용 토큰 발급 (개발 환경 전용)
+   * 실제 OAuth 플로우 없이 테스트용 JWT 토큰을 발급합니다.
+   */
+  @Public()
+  @Post('dev/token')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: '테스트용 토큰 발급 (개발 환경 전용)',
+    description:
+      '개발 환경에서만 사용 가능한 테스트용 토큰 발급 엔드포인트입니다. 실제 사용자 계정이 없어도 토큰을 발급받아 API를 테스트할 수 있습니다.',
+  })
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        email: {
+          type: 'string',
+          example: 'test@example.com',
+          description: '테스트용 이메일 (선택)',
+        },
+        nickname: {
+          type: 'string',
+          example: 'tester',
+          description: '테스트용 닉네임 (선택)',
+        },
+      },
+    },
+  })
+  @ApiResponse({
+    status: 200,
+    description: '테스트 토큰 발급 성공',
+    schema: {
+      type: 'object',
+      properties: {
+        user: {
+          type: 'object',
+          properties: {
+            id: { type: 'string', example: '999999' },
+            email: { type: 'string', example: 'test@example.com' },
+            nickname: { type: 'string', example: 'tester' },
+          },
+        },
+        tokens: {
+          type: 'object',
+          properties: {
+            accessToken: {
+              type: 'string',
+              example: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...',
+            },
+            refreshToken: {
+              type: 'string',
+              example: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...',
+            },
+          },
+        },
+      },
+    },
+  })
+  @ApiResponse({ status: 403, description: '프로덕션 환경에서는 사용 불가' })
+  async generateDevToken(@Body() body?: { email?: string; nickname?: string }) {
+    const nodeEnv = this.configService.get('NODE_ENV', { infer: true });
+
+    // 프로덕션 환경에서는 사용 불가
+    if (nodeEnv === 'production') {
+      throw new BadRequestException(
+        '이 엔드포인트는 개발 환경에서만 사용 가능합니다.',
+      );
+    }
+
+    return this.authService.generateDevToken(body?.email, body?.nickname);
+  }
+
+  /**
    * GitHub OAuth 로그인 시작
    * State와 PKCE code_challenge 생성 후 OAuth 제공자로 리다이렉트
    *
@@ -115,7 +188,10 @@ export class AuthController {
    */
   @Public()
   @Get('github')
-  async githubAuth(@Req() req: RequestWithId, @Res() res: Response): Promise<void> {
+  async githubAuth(
+    @Req() req: RequestWithId,
+    @Res() res: Response,
+  ): Promise<void> {
     const result = await this.handleOAuthStart(req, 'GITHUB');
     res.redirect(result.url);
   }
@@ -155,7 +231,10 @@ export class AuthController {
    */
   @Public()
   @Get('kakao')
-  async kakaoAuth(@Req() req: RequestWithId, @Res() res: Response): Promise<void> {
+  async kakaoAuth(
+    @Req() req: RequestWithId,
+    @Res() res: Response,
+  ): Promise<void> {
     const result = await this.handleOAuthStart(req, 'KAKAO');
     res.redirect(result.url);
   }
