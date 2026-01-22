@@ -16,3 +16,7 @@ process.env.OAUTH_ALLOWED_REDIRECT_URLS =
   'http://localhost:3000,https://bakmyunjun.site';
 process.env.OAUTH_REDIRECT_URL =
   process.env.OAUTH_REDIRECT_URL || 'http://localhost:3000/auth/callback';
+
+// AI 서비스 설정 (테스트용 더미 값)
+process.env.UPSTAGE_API_KEY =
+  process.env.UPSTAGE_API_KEY || 'test-upstage-api-key';
