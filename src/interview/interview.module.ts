@@ -2,9 +2,10 @@ import { Module } from '@nestjs/common';
 import { InterviewService } from './interview.service';
 import { InterviewController } from './interview.controller';
 import { AiModule } from '../ai/ai.module';
+import { ReportModule } from '../report/report.module';
 
 @Module({
-  imports: [AiModule],
+  imports: [AiModule, ReportModule],
   controllers: [InterviewController],
   providers: [InterviewService],
 })

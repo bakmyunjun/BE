@@ -15,6 +15,7 @@ import {
 import { SubmitTurnDataDto } from './dto/submit-turn-response.dto';
 import { AiService, type GeneratedQuestion } from '../ai/ai.service';
 import { PrismaService } from '../database/prisma.service';
+import { ReportService } from '../report/report.service';
 
 const MAX_TURNS = 10;
 const MAX_CONSECUTIVE_FOLLOWUP = 2;
@@ -28,6 +29,7 @@ export class InterviewService {
   constructor(
     private readonly aiService: AiService,
     private readonly prisma: PrismaService,
+    private readonly reportService: ReportService,
   ) {}
 
   private parseUserId(userId: string): bigint | null {
@@ -259,16 +261,32 @@ export class InterviewService {
 
     if (isComplete) {
       // 10턴 완료 - 분석 상태로 변경
-      await this.prisma.interviewSession.update({
-        where: { sessionId: interviewId },
-        data: {
-          status: 'analyzing',
-          endedAt: new Date(),
-          currentTurn: MAX_TURNS,
-        },
+      const endedAt = new Date();
+      await this.prisma.$transaction(async (tx) => {
+        await tx.interviewSession.update({
+          where: { sessionId: interviewId },
+          data: {
+            status: 'analyzing',
+            endedAt,
+            currentTurn: MAX_TURNS,
+          },
+        });
+
+        await tx.interviewReport.upsert({
+          where: { sessionId: interviewId },
+          create: { sessionId: interviewId, status: 'analyzing' },
+          update: { status: 'analyzing', generatedAt: null },
+        });
       });
 
       this.logger.log(`면접 완료 - ${interviewId}, 분석 상태로 전환`);
+
+      // 리포트 생성은 백그라운드로 실행 (요청 응답은 즉시 반환)
+      setImmediate(() => {
+        void this.reportService.generateForSession(interviewId).catch((err) => {
+          this.logger.error('리포트 생성 실패', err);
+        });
+      });
 
       return {
         interviewId,

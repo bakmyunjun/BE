@@ -42,6 +42,14 @@ const envSchema = z.object({
   // Swagger Basic Auth (production에서 Swagger를 켤 때 필수 권장)
   SWAGGER_BASIC_USER: z.string().optional(),
   SWAGGER_BASIC_PASSWORD: z.string().optional(),
+  // Report worker (background)
+  ENABLE_REPORT_WORKER: z
+    .string()
+    .optional()
+    .transform((val) =>
+      val === undefined ? undefined : val === 'true' || val === '1',
+    ),
+  REPORT_WORKER_INTERVAL_MS: z.coerce.number().int().positive().optional(),
   // Upstage Solar API Key
   UPSTAGE_API_KEY: z
     .string()

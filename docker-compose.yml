@@ -80,6 +80,9 @@ services:
       ENABLE_SWAGGER: ${ENABLE_SWAGGER:-}
       FRONTEND_URL: ${FRONTEND_URL:-}
       SENTRY_DSN: ${SENTRY_DSN:-}
+      # Report worker
+      ENABLE_REPORT_WORKER: ${ENABLE_REPORT_WORKER:-}
+      REPORT_WORKER_INTERVAL_MS: ${REPORT_WORKER_INTERVAL_MS:-}
     ports:
       - "127.0.0.1:${PORT:-3000}:3000"
     depends_on:

@@ -17,6 +17,10 @@ export interface GeneratedQuestion {
   text: string;
 }
 
+export interface GenerateReportParams {
+  prompt: string;
+}
+
 @Injectable()
 export class AiService {
   private readonly logger = new Logger(AiService.name);
@@ -40,6 +44,26 @@ export class AiService {
     });
 
     return this.client;
+  }
+
+  async generateInterviewReport(params: GenerateReportParams): Promise<string> {
+    const { prompt } = params;
+
+    const response = await this.getClient().chat.completions.create({
+      model: 'solar-pro',
+      messages: [
+        {
+          role: 'system',
+          content:
+            'You are a strict JSON generator. Output JSON only. No markdown.',
+        },
+        { role: 'user', content: prompt },
+      ],
+      temperature: 0.2,
+      max_tokens: 1500,
+    });
+
+    return response.choices[0]?.message?.content?.trim() || '';
   }
 
   /**

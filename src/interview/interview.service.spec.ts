@@ -2,6 +2,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { InterviewService } from './interview.service';
 import { AiService } from '../ai/ai.service';
 import { PrismaService } from '../database/prisma.service';
+import { ReportService } from '../report/report.service';
 
 describe('InterviewService', () => {
   let service: InterviewService;
@@ -28,6 +29,10 @@ describe('InterviewService', () => {
     $transaction: jest.fn(),
   };
 
+  const mockReportService = {
+    generateForSession: jest.fn(),
+  };
+
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -39,6 +44,10 @@ describe('InterviewService', () => {
         {
           provide: PrismaService,
           useValue: mockPrismaService,
+        },
+        {
+          provide: ReportService,
+          useValue: mockReportService,
         },
       ],
     }).compile();
