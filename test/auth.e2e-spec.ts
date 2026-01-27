@@ -94,20 +94,20 @@ describe('AuthController (e2e)', () => {
       expect((stateRecord as any)?.redirectUri).toBe(redirectUri);
     });
 
-    it('허용되지 않은 redirect_uri는 500 에러 (BadRequestException이 InternalServerErrorException으로 래핑됨)', async () => {
+    it('허용되지 않은 redirect_uri는 400 에러', async () => {
       const redirectUri = 'https://malicious.com/auth/callback';
       await request(app.getHttpServer())
         .get(`/auth/github?redirect_uri=${encodeURIComponent(redirectUri)}`)
-        .expect(500);
+        .expect(400);
 
       // 에러가 발생했는지만 확인 (로그에 에러 메시지가 출력됨)
     });
 
-    it('잘못된 형식의 redirect_uri는 500 에러 (BadRequestException이 InternalServerErrorException으로 래핑됨)', async () => {
+    it('잘못된 형식의 redirect_uri는 400 에러', async () => {
       const redirectUri = 'not-a-valid-url';
       await request(app.getHttpServer())
         .get(`/auth/github?redirect_uri=${encodeURIComponent(redirectUri)}`)
-        .expect(500);
+        .expect(400);
 
       // 에러가 발생했는지만 확인 (로그에 에러 메시지가 출력됨)
     });
