@@ -413,4 +413,73 @@ export class InterviewService {
       ),
     };
   }
+
+  async getReport(
+    interviewId: string,
+    userId: string,
+  ): Promise<{
+    interviewId: string;
+    interviewStatus: 'IN_PROGRESS' | 'ANALYZING' | 'DONE' | 'FAILED';
+    report: {
+      status: 'analyzing' | 'done' | 'failed';
+      totalScore?: number;
+      durationSec?: number;
+      model?: string | null;
+      promptVersion?: string | null;
+      generatedAt?: string | null;
+      result?: unknown;
+    } | null;
+  }> {
+    const session = await this.prisma.interviewSession.findUnique({
+      where: { sessionId: interviewId },
+      select: {
+        sessionId: true,
+        userId: true,
+        status: true,
+        report: {
+          select: {
+            status: true,
+            totalScore: true,
+            durationSec: true,
+            model: true,
+            promptVersion: true,
+            generatedAt: true,
+            resultJson: true,
+          },
+        },
+      },
+    });
+
+    if (!session) throw new NotFoundException(`면접을 찾을 수 없습니다: ${interviewId}`);
+
+    const sessionUserId = session.userId ? String(session.userId) : null;
+    if (sessionUserId && sessionUserId !== userId) {
+      throw new BadRequestException('면접에 대한 권한이 없습니다');
+    }
+
+    const interviewStatus = this.toApiStatus(session.status);
+    const report = session.report
+      ? {
+          status: session.report.status,
+          ...(typeof session.report.totalScore === 'number'
+            ? { totalScore: session.report.totalScore }
+            : {}),
+          ...(typeof session.report.durationSec === 'number'
+            ? { durationSec: session.report.durationSec }
+            : {}),
+          model: session.report.model,
+          promptVersion: session.report.promptVersion,
+          generatedAt: session.report.generatedAt
+            ? session.report.generatedAt.toISOString()
+            : null,
+          result: session.report.resultJson ?? undefined,
+        }
+      : null;
+
+    return {
+      interviewId: session.sessionId,
+      interviewStatus,
+      report,
+    };
+  }
 }

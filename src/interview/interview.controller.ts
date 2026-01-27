@@ -1,4 +1,12 @@
-import { Body, Controller, Post, Req, Param, UnauthorizedException } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  Post,
+  Req,
+  Param,
+  UnauthorizedException,
+} from '@nestjs/common';
 import {
   ApiBody,
   ApiOkResponse,
@@ -19,6 +27,10 @@ import {
   SubmitTurnDataDto,
   SubmitTurnResponseDto,
 } from './dto/submit-turn-response.dto';
+import {
+  GetInterviewReportDataDto,
+  GetInterviewReportResponseDto,
+} from './dto/get-interview-report-response.dto';
 import { User, type UserPayload } from '../auth/decorators/user.decorator';
 import { DevPublic } from '../auth/decorators/public.decorator';
 
@@ -91,6 +103,38 @@ export class InterviewController {
       userId,
     );
 
+    return new SuccessResponseDto(data, requestId);
+  }
+
+  @Get(':interviewId/report')
+  @DevPublic() // 개발 환경에서 인증 없이 테스트 가능
+  @ApiOperation({
+    summary: '면접 리포트 조회',
+    description:
+      '면접 종료 후 AI 리포트 생성 상태/결과를 조회합니다. 개발 환경에서는 인증 없이 사용 가능합니다.',
+  })
+  @ApiParam({
+    name: 'interviewId',
+    example: 'intv_123',
+    description: '면접 ID',
+  })
+  @ApiOkResponse({ type: GetInterviewReportResponseDto })
+  async getReport(
+    @Param('interviewId') interviewId: string,
+    @Req() req: Request,
+    @User() user?: UserPayload,
+  ) {
+    const requestId =
+      req.id || (req.headers['x-request-id'] as string) || `req_${Date.now()}`;
+
+    let userId: string;
+    if (user?.id) userId = String(user.id);
+    else if (process.env.NODE_ENV === 'production')
+      throw new UnauthorizedException();
+    else userId = '999999';
+
+    const data: GetInterviewReportDataDto =
+      await this.interviewService.getReport(interviewId, userId);
     return new SuccessResponseDto(data, requestId);
   }
 }

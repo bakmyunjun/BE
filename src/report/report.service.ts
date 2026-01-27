@@ -157,6 +157,11 @@ export class ReportService implements OnModuleInit, OnModuleDestroy {
           generatedAt: new Date(),
         },
       });
+
+      await this.prisma.interviewSession.update({
+        where: { sessionId },
+        data: { status: 'done' },
+      });
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       const failure: Prisma.InputJsonValue = {
@@ -182,6 +187,11 @@ export class ReportService implements OnModuleInit, OnModuleDestroy {
           promptVersion: 'v1',
           generatedAt: new Date(),
         },
+      });
+
+      await this.prisma.interviewSession.update({
+        where: { sessionId },
+        data: { status: 'failed' },
       });
     }
   }
