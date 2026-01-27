@@ -27,7 +27,7 @@ export class ReportService implements OnModuleInit, OnModuleDestroy {
     private readonly prisma: PrismaService,
     private readonly configService: ConfigService<Env, true>,
     private readonly aiService: AiService,
-  ) {}
+  ) { }
 
   onModuleInit() {
     const enabled =
@@ -114,14 +114,14 @@ export class ReportService implements OnModuleInit, OnModuleDestroy {
     });
     if (!session) return;
 
-      const durationSec =
+    const durationSec =
       session.endedAt && session.startedAt
         ? Math.max(
-            0,
-            Math.floor(
-              (session.endedAt.getTime() - session.startedAt.getTime()) / 1000,
-            ),
-          )
+          0,
+          Math.floor(
+            (session.endedAt.getTime() - session.startedAt.getTime()) / 1000,
+          ),
+        )
         : undefined;
 
     try {
@@ -209,7 +209,7 @@ export class ReportService implements OnModuleInit, OnModuleDestroy {
     }>;
   }) {
     const turns = session.turns
-      .filter((t) => t.answerText?.trim().length > 0)
+      .filter((t) => (t.answerText ?? "").trim().length > 0)
       .map((t) => ({
         turnIndex: t.turnIndex,
         questionType: t.questionType,
@@ -219,30 +219,101 @@ export class ReportService implements OnModuleInit, OnModuleDestroy {
       }));
 
     return [
-      '당신은 숙련된 기술 면접 평가관입니다.',
-      '',
-      '아래 면접 기록을 바탕으로 평가 리포트를 생성하세요.',
-      '반드시 JSON만 출력하세요(설명/마크다운/코드펜스 금지).',
-      '',
-      'JSON 스키마:',
-      '{',
-      '  "totalScore": number,          // 0~100',
+      // 역할
+      "당신은 숙련된 기술 면접 평가관이다.",
+      "목표는 면접 기록을 바탕으로 프론트에서 즉시 렌더 가능한 평가 리포트를 생성하는 것이다.",
+      "",
+
+      // 출력 규칙 (JSON-only 강제 + 코드펜스/영어 방지)
+      "출력 규칙:",
+      "- 반드시 JSON 단일 객체만 출력한다.",
+      "- 출력의 첫 글자는 반드시 { 이어야 한다.",
+      "- 출력의 마지막 글자는 반드시 } 이어야 한다.",
+      "- 설명/마크다운/코드펜스/주석/추가 텍스트를 절대 출력하지 않는다.",
+      "- 출력에 백틱(`) 또는 코드펜스(```) 문자를 절대 포함하지 않는다.",
+      "- 출력에 'json' 문자열을 절대 포함하지 않는다.",
+      "- 모든 문자열은 한국어로 작성하고, 종결은 '-다/-이다'로 작성한다(영어 금지).",
+      "- 숫자는 숫자 타입으로 출력한다(문자열 금지).",
+      "- 스키마에 없는 키를 추가하지 않는다.",
+      "- 알 수 없거나 제공되지 않은 값은 null로 출력한다.",
+      "- 위 규칙을 지킬 수 없으면 빈 JSON 객체 {} 만 출력한다.",
+      "",
+
+      // metrics 규칙 (환각 방지)
+      "metrics 사용 규칙:",
+      "- metrics는 turn별 부가 지표이며, 존재할 때만 참고한다.",
+      "- metrics의 키/단위가 불명확하면 추측하지 말고 null 처리한다.",
+      "- metrics가 없더라도 텍스트(answerText) 기반으로 평가는 반드시 수행한다.",
+      "",
+
+      // 고정 enum (너가 고정하려는 key 포함)
+      "고정 Enum(절대 변경 금지):",
+      '- competencyKey: ["LOGIC","TIME_MANAGEMENT","SPECIFICITY","STAR_METHOD","EYE_CONTACT","VOICE_TONE"]',
+      '- competencyLevel: ["우수","양호","보통","개선 필요"]',
+      '- severity: ["INFO","WARNING","CRITICAL"]',
+      "",
+
+      // 평가 기준
+      "평가 기준(총점 0~100):",
+      "- LOGIC 25점: 구조(주장-근거-예시, 원인-해결-결과)가 명확한가.",
+      "- SPECIFICITY 20점: 수치/기간/비교/범위 등 구체 정보가 있는가.",
+      "- COMMUNICATION 20점: 핵심 전달, 용어 설명, 듣는 사람 관점의 설명이 있는가.",
+      "- PROBLEM_SOLVING 20점: 대안/트레이드오프/검증/회고가 포함되는가.",
+      "- TIME_MANAGEMENT 15점: 너무 장황하거나 지나치게 짧지 않은가.",
+      "",
+
+      // 스키마 고정 (렌더 친화)
+      "JSON 스키마(반드시 이 구조로만 출력):",
+      "{",
+      '  "version": "v1",',
+      '  "session": { "sessionId": string, "title": string | null, "topic": string | null },',
+      '  "totalScore": number,',
       '  "summary": string,',
       '  "strengths": string[],',
       '  "weaknesses": string[],',
+      '  "competencies": {',
+      '    "items": [',
+      '      { "key": "LOGIC", "label": "논리성", "level": string, "score": number, "comment": string },',
+      '      { "key": "TIME_MANAGEMENT", "label": "시간 관리", "level": string, "score": number, "comment": string },',
+      '      { "key": "SPECIFICITY", "label": "구체성", "level": string, "score": number, "comment": string },',
+      '      { "key": "STAR_METHOD", "label": "STAR 기법", "level": string, "score": number, "comment": string },',
+      '      { "key": "EYE_CONTACT", "label": "시선 처리", "level": string, "score": number, "comment": string },',
+      '      { "key": "VOICE_TONE", "label": "목소리 톤", "level": string, "score": number, "comment": string }',
+      "    ]",
+      "  },",
+      '  "textPatternAnalysis": {',
+      '    "issues": [ { "type": string, "severity": string, "description": string, "affectedTurnIndexes": number[] } ]',
+      "  },",
       '  "perTurnFeedback": [',
-      '    { "turnIndex": number, "score": number, "feedback": string }',
-      '  ]',
-      '}',
-      '',
+      '    {',
+      '      "turnIndex": number,',
+      '      "score": number,',
+      '      "feedback": string,',
+      '      "highlight": { "strength": string | null, "weakness": string | null, "suggestion": string | null }',
+      "    }",
+      "  ]",
+      "}",
+      "",
+
+      // 생성 규칙 (안정화)
+      "생성 규칙:",
+      "- perTurnFeedback 길이는 입력 turns 길이와 정확히 같아야 한다.",
+      "- strengths/weaknesses는 중복을 피하고 2~5개로 제한한다.",
+      "- textPatternAnalysis.issues는 최대 5개까지만 출력한다.",
+      "- summary는 2~4문장으로 작성한다.",
+      "- competencies.items의 score 합계가 totalScore와 유사한 경향을 가져야 한다(완전 일치 필수는 아니다).",
+      "",
+
+      // 입력
+      "입력:",
       `sessionId: ${session.sessionId}`,
-      `title: ${session.title ?? ''}`,
-      `topic: ${session.topic ?? ''}`,
-      '',
-      'turns:',
+      `title: ${session.title ?? "null"}`,
+      `topic: ${session.topic ?? "null"}`,
+      "turns(JSON):",
       JSON.stringify(turns),
-    ].join('\n');
+    ].join("\n");
   }
+
 
   private tryParseJson(raw: string): ReportResult | null {
     const trimmed = raw.trim();

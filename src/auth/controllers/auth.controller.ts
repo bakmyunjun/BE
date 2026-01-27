@@ -8,6 +8,7 @@ import {
   Res,
   HttpCode,
   HttpStatus,
+  HttpException,
   InternalServerErrorException,
   HttpRedirectResponse,
   BadRequestException,
@@ -399,6 +400,12 @@ export class AuthController {
         `AuthController.${provider}Auth`,
         { provider },
       );
+
+      // 의도된 4xx/HttpException은 그대로 전달
+      if (error instanceof HttpException) {
+        throw error;
+      }
+
       throw new InternalServerErrorException(
         'OAuth 시작 처리 중 오류가 발생했습니다.',
       );
@@ -478,6 +485,11 @@ export class AuthController {
           provider,
         },
       );
+
+      // 의도된 4xx/HttpException은 그대로 전달
+      if (error instanceof HttpException) {
+        throw error;
+      }
 
       if (error instanceof TypeError && error.message.includes('Invalid URL')) {
         throw new InternalServerErrorException(
