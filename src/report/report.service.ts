@@ -127,12 +127,13 @@ export class ReportService implements OnModuleInit, OnModuleDestroy {
     try {
       const prompt = this.buildReportPrompt(session);
       const rawText = await this.aiService.generateInterviewReport({ prompt });
-      const parsed = this.tryParseJson(rawText);
-
-      const resultJson = this.toJsonResultJson(parsed, rawText);
+      const parsed = this.parseReportJson(rawText);
+      const resultJson = parsed
+        ? ({ ...parsed, _rawText: rawText } as Prisma.InputJsonObject)
+        : ({ _rawText: rawText } as Prisma.InputJsonObject);
       const totalScore =
-        typeof resultJson.totalScore === 'number'
-          ? resultJson.totalScore
+        parsed && typeof (parsed as Record<string, unknown>).totalScore === 'number'
+          ? ((parsed as Record<string, unknown>).totalScore as number)
           : undefined;
 
       await this.prisma.interviewReport.upsert({
@@ -232,6 +233,7 @@ export class ReportService implements OnModuleInit, OnModuleDestroy {
       "- 설명/마크다운/코드펜스/주석/추가 텍스트를 절대 출력하지 않는다.",
       "- 출력에 백틱(`) 또는 코드펜스(```) 문자를 절대 포함하지 않는다.",
       "- 출력에 'json' 문자열을 절대 포함하지 않는다.",
+      "- JSON을 문자열로 감싸지 않는다(예: \"{\\\"a\\\":1}\" 금지).",
       "- 모든 문자열은 한국어로 작성하고, 종결은 '-다/-이다'로 작성한다(영어 금지).",
       "- 숫자는 숫자 타입으로 출력한다(문자열 금지).",
       "- 스키마에 없는 키를 추가하지 않는다.",
@@ -314,59 +316,47 @@ export class ReportService implements OnModuleInit, OnModuleDestroy {
     ].join("\n");
   }
 
-
-  private tryParseJson(raw: string): ReportResult | null {
+  private parseReportJson(raw: string): Prisma.InputJsonObject | null {
     const trimmed = raw.trim();
     if (!trimmed) return null;
-    try {
-      return JSON.parse(trimmed) as ReportResult;
-    } catch {
-      return null;
-    }
-  }
 
-  private toJsonResultJson(
-    parsed: ReportResult | null,
-    rawText: string,
-  ): Prisma.InputJsonObject {
-    const result: Record<string, unknown> = { rawText };
-    if (!parsed) return result as Prisma.InputJsonObject;
+    const parseOnce = (text: string): unknown => {
+      try {
+        return JSON.parse(text);
+      } catch {
+        return null;
+      }
+    };
 
-    const totalScore =
-      typeof parsed.totalScore === 'number' ? parsed.totalScore : undefined;
-    if (totalScore !== undefined) result.totalScore = totalScore;
+    // 1) code fence 제거 (```json ... ```)
+    const fencedMatch = trimmed.match(/```(?:json)?\\s*([\\s\\S]*?)\\s*```/i);
+    const candidate1 = fencedMatch?.[1]?.trim() || trimmed;
 
-    if (typeof parsed.summary === 'string') result.summary = parsed.summary;
-
-    if (Array.isArray(parsed.strengths)) {
-      const strengths = parsed.strengths.filter((v) => typeof v === 'string');
-      if (strengths.length) result.strengths = strengths;
+    // 2) 1차 파싱
+    const parsed1 = parseOnce(candidate1);
+    if (parsed1 && typeof parsed1 === 'object' && !Array.isArray(parsed1)) {
+      return parsed1 as Prisma.InputJsonObject;
     }
 
-    if (Array.isArray(parsed.weaknesses)) {
-      const weaknesses = parsed.weaknesses.filter((v) => typeof v === 'string');
-      if (weaknesses.length) result.weaknesses = weaknesses;
+    // 3) JSON이 문자열로 한 번 더 감싸진 경우
+    if (typeof parsed1 === 'string') {
+      const parsed2 = parseOnce(parsed1);
+      if (parsed2 && typeof parsed2 === 'object' && !Array.isArray(parsed2)) {
+        return parsed2 as Prisma.InputJsonObject;
+      }
     }
 
-    if (Array.isArray(parsed.perTurnFeedback)) {
-      const perTurnFeedback = parsed.perTurnFeedback
-        .filter(
-          (v) =>
-            v &&
-            typeof v === 'object' &&
-            typeof (v as { turnIndex?: unknown }).turnIndex === 'number' &&
-            typeof (v as { feedback?: unknown }).feedback === 'string',
-        )
-        .map((v) => ({
-          turnIndex: (v as { turnIndex: number }).turnIndex,
-          ...(typeof (v as { score?: unknown }).score === 'number'
-            ? { score: (v as { score: number }).score }
-            : {}),
-          feedback: (v as { feedback: string }).feedback,
-        }));
-      if (perTurnFeedback.length) result.perTurnFeedback = perTurnFeedback;
+    // 4) 잡텍스트 제거: 첫 { ~ 마지막 } 구간 추출
+    const firstBrace = candidate1.indexOf('{');
+    const lastBrace = candidate1.lastIndexOf('}');
+    if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
+      const slice = candidate1.slice(firstBrace, lastBrace + 1);
+      const parsed3 = parseOnce(slice);
+      if (parsed3 && typeof parsed3 === 'object' && !Array.isArray(parsed3)) {
+        return parsed3 as Prisma.InputJsonObject;
+      }
     }
 
-    return result as Prisma.InputJsonObject;
+    return null;
   }
 }
