@@ -20,15 +20,26 @@ export interface GeneratedQuestion {
 @Injectable()
 export class AiService {
   private readonly logger = new Logger(AiService.name);
-  private readonly client: OpenAI;
+  private client?: OpenAI;
 
   constructor(private readonly configService: ConfigService<Env>) {
+    // NOTE: client는 필요 시점에만 초기화 (development에서 키 없이도 서버 부팅 가능)
+  }
+
+  private getClient(): OpenAI {
+    if (this.client) return this.client;
+
     const apiKey = this.configService.get('UPSTAGE_API_KEY');
+    if (!apiKey) {
+      throw new Error('UPSTAGE_API_KEY is not set');
+    }
 
     this.client = new OpenAI({
       apiKey,
       baseURL: 'https://api.upstage.ai/v1/solar',
     });
+
+    return this.client;
   }
 
   /**
@@ -61,7 +72,7 @@ export class AiService {
         `질문 생성 요청: 주제=${mainTopicId}, 서브토픽=${subTopicIds.join(', ')}, 턴=${turnIndex}, 타입=${questionType}`,
       );
 
-      const response = await this.client.chat.completions.create({
+      const response = await this.getClient().chat.completions.create({
         model: 'solar-pro',
         messages: [
           {

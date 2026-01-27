@@ -1,7 +1,9 @@
 import { Injectable, ExecutionContext } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { Reflector } from '@nestjs/core';
-import { IS_PUBLIC_KEY } from '../decorators/public.decorator';
+import { ConfigService } from '@nestjs/config';
+import { IS_PUBLIC_KEY, IS_DEV_PUBLIC_KEY } from '../decorators/public.decorator';
+import type { Env } from '../../config/env.schema';
 
 /**
  * JWT 인증 Guard
@@ -9,7 +11,10 @@ import { IS_PUBLIC_KEY } from '../decorators/public.decorator';
  */
 @Injectable()
 export class JwtAuthGuard extends AuthGuard('jwt') {
-  constructor(private reflector: Reflector) {
+  constructor(
+    private readonly reflector: Reflector,
+    private readonly configService: ConfigService<Env, true>,
+  ) {
     super();
   }
 
@@ -21,6 +26,15 @@ export class JwtAuthGuard extends AuthGuard('jwt') {
 
     if (isPublic) {
       return true;
+    }
+
+    const isDevPublic = this.reflector.getAllAndOverride<boolean>(
+      IS_DEV_PUBLIC_KEY,
+      [context.getHandler(), context.getClass()],
+    );
+    if (isDevPublic) {
+      const nodeEnv = this.configService.get('NODE_ENV', { infer: true });
+      if (nodeEnv !== 'production') return true;
     }
 
     return super.canActivate(context);

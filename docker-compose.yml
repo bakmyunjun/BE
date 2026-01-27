@@ -74,6 +74,12 @@ services:
       KAKAO_CLIENT_SECRET: ${KAKAO_CLIENT_SECRET:-}
       KAKAO_CALLBACK_URL: ${KAKAO_CALLBACK_URL:-}
       OAUTH_REDIRECT_URL: ${OAUTH_REDIRECT_URL:-}
+      # AI (Upstage Solar)
+      UPSTAGE_API_KEY: ${UPSTAGE_API_KEY:-}
+      # Swagger / Observability
+      ENABLE_SWAGGER: ${ENABLE_SWAGGER:-}
+      FRONTEND_URL: ${FRONTEND_URL:-}
+      SENTRY_DSN: ${SENTRY_DSN:-}
     ports:
       - "127.0.0.1:${PORT:-3000}:3000"
     depends_on:

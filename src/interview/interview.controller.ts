@@ -1,10 +1,9 @@
-import { Body, Controller, Post, Req, UseGuards, Param } from '@nestjs/common';
+import { Body, Controller, Post, Req, Param, UnauthorizedException } from '@nestjs/common';
 import {
   ApiBody,
   ApiOkResponse,
   ApiOperation,
   ApiTags,
-  ApiBearerAuth,
   ApiParam,
 } from '@nestjs/swagger';
 import type { Request } from 'express';
@@ -21,7 +20,7 @@ import {
   SubmitTurnResponseDto,
 } from './dto/submit-turn-response.dto';
 import { User, type UserPayload } from '../auth/decorators/user.decorator';
-import { Public } from '../auth/decorators/public.decorator';
+import { DevPublic } from '../auth/decorators/public.decorator';
 
 @ApiTags('interviews')
 @Controller('interviews')
@@ -29,7 +28,7 @@ export class InterviewController {
   constructor(private readonly interviewService: InterviewService) {}
 
   @Post()
-  @Public() // 개발 환경에서 인증 없이 테스트 가능
+  @DevPublic() // 개발 환경에서 인증 없이 테스트 가능
   @ApiOperation({
     summary: '면접 생성 및 시작(첫 질문 반환)',
     description: '개발 환경에서는 인증 없이 사용 가능합니다.',
@@ -45,7 +44,11 @@ export class InterviewController {
       req.id || (req.headers['x-request-id'] as string) || `req_${Date.now()}`;
 
     // user가 없으면 테스트용 ID 사용 (개발 환경)
-    const userId = user?.id ? String(user.id) : '999999';
+    let userId: string;
+    if (user?.id) userId = String(user.id);
+    else if (process.env.NODE_ENV === 'production')
+      throw new UnauthorizedException();
+    else userId = '999999';
 
     const data: CreateInterviewDataDto =
       await this.interviewService.createAndStart(dto, userId);
@@ -54,7 +57,7 @@ export class InterviewController {
   }
 
   @Post(':interviewId/turns')
-  @Public() // 개발 환경에서 인증 없이 테스트 가능
+  @DevPublic() // 개발 환경에서 인증 없이 테스트 가능
   @ApiOperation({
     summary: '턴 제출 및 다음 질문 생성',
     description: '개발 환경에서는 인증 없이 사용 가능합니다.',
@@ -76,7 +79,11 @@ export class InterviewController {
       req.id || (req.headers['x-request-id'] as string) || `req_${Date.now()}`;
 
     // user가 없으면 테스트용 ID 사용 (개발 환경)
-    const userId = user?.id ? String(user.id) : '999999';
+    let userId: string;
+    if (user?.id) userId = String(user.id);
+    else if (process.env.NODE_ENV === 'production')
+      throw new UnauthorizedException();
+    else userId = '999999';
 
     const data: SubmitTurnDataDto = await this.interviewService.submitTurn(
       interviewId,

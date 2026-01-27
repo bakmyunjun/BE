@@ -5,6 +5,7 @@ import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import helmet from 'helmet';
 import * as Sentry from '@sentry/nestjs';
 import { nodeProfilingIntegration } from '@sentry/profiling-node';
+import type { Request, Response, NextFunction } from 'express';
 import { AppModule } from './app.module';
 import type { Env } from './config/env.schema';
 import { TransformInterceptor } from './common/interceptors/transform.interceptor';
@@ -31,19 +32,31 @@ async function bootstrap() {
   const configService = app.get(ConfigService<Env, true>);
   const port = configService.get('PORT', { infer: true });
   const nodeEnv = configService.get('NODE_ENV', { infer: true });
+  const enableSwagger =
+    configService.get('ENABLE_SWAGGER', { infer: true }) ??
+    nodeEnv !== 'production';
+  const frontendUrls = configService.get('FRONTEND_URL', { infer: true });
+  const swaggerBasicUser = configService.get('SWAGGER_BASIC_USER', {
+    infer: true,
+  });
+  const swaggerBasicPassword = configService.get('SWAGGER_BASIC_PASSWORD', {
+    infer: true,
+  });
 
   // Helmet 보안 헤더 설정
-  // Swagger UI를 위해 CSP 완화 (개발 환경)
+  // Swagger UI를 위해 CSP 완화 (Swagger가 켜진 경우만)
   app.use(
     helmet({
-      contentSecurityPolicy: {
-        directives: {
-          defaultSrc: ["'self'"],
-          styleSrc: ["'self'", "'unsafe-inline'"],
-          scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'"], // Swagger UI를 위해 완화
-          imgSrc: ["'self'", 'data:', 'https:'],
-        },
-      },
+      contentSecurityPolicy: enableSwagger
+        ? {
+            directives: {
+              defaultSrc: ["'self'"],
+              styleSrc: ["'self'", "'unsafe-inline'"],
+              scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'"], // Swagger UI를 위해 완화
+              imgSrc: ["'self'", 'data:', 'https:'],
+            },
+          }
+        : undefined,
       crossOriginEmbedderPolicy: false,
     }),
   );
@@ -52,7 +65,7 @@ async function bootstrap() {
   app.enableCors({
     origin:
       nodeEnv === 'production'
-        ? process.env.FRONTEND_URL?.split(',') || []
+        ? frontendUrls
         : [
             'http://localhost:3000',
             'http://localhost:3001',
@@ -105,12 +118,51 @@ async function bootstrap() {
     .addTag('users', '사용자 관련 API')
     .build();
 
-  const document = SwaggerModule.createDocument(app, config);
-  SwaggerModule.setup('api', app, document, {
-    swaggerOptions: {
-      persistAuthorization: true, // 새로고침해도 인증 정보 유지
-    },
-  });
+  if (enableSwagger) {
+    // production에서는 Swagger를 Basic Auth로 보호
+    if (nodeEnv === 'production') {
+      const requireBasicAuth = (
+        req: Request,
+        res: Response,
+        next: NextFunction,
+      ) => {
+        const authHeader = req.headers.authorization;
+        if (!authHeader?.startsWith('Basic ')) {
+          res.setHeader('WWW-Authenticate', 'Basic realm="Swagger"');
+          return res.status(401).send('Unauthorized');
+        }
+
+        const encoded = authHeader.slice('Basic '.length);
+        let decoded: string;
+        try {
+          decoded = Buffer.from(encoded, 'base64').toString('utf8');
+        } catch {
+          res.setHeader('WWW-Authenticate', 'Basic realm="Swagger"');
+          return res.status(401).send('Unauthorized');
+        }
+
+        const sep = decoded.indexOf(':');
+        const user = sep >= 0 ? decoded.slice(0, sep) : '';
+        const pass = sep >= 0 ? decoded.slice(sep + 1) : '';
+
+        if (user !== swaggerBasicUser || pass !== swaggerBasicPassword) {
+          res.setHeader('WWW-Authenticate', 'Basic realm="Swagger"');
+          return res.status(401).send('Unauthorized');
+        }
+
+        next();
+      };
+
+      app.use(['/api', '/api-json'], requireBasicAuth);
+    }
+
+    const document = SwaggerModule.createDocument(app, config);
+    SwaggerModule.setup('api', app, document, {
+      swaggerOptions: {
+        persistAuthorization: true, // 새로고침해도 인증 정보 유지
+      },
+    });
+  }
 
   await app.listen(port);
 }
