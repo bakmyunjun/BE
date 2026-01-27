@@ -1,6 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { InterviewService } from './interview.service';
 import { AiService } from '../ai/ai.service';
+import { PrismaService } from '../database/prisma.service';
 
 describe('InterviewService', () => {
   let service: InterviewService;
@@ -10,6 +11,23 @@ describe('InterviewService', () => {
     evaluateAnswer: jest.fn(),
   };
 
+  const mockPrismaService = {
+    user: {
+      findUnique: jest.fn(),
+    },
+    interviewSession: {
+      create: jest.fn(),
+      findUnique: jest.fn(),
+      update: jest.fn(),
+    },
+    interviewTurn: {
+      create: jest.fn(),
+      update: jest.fn(),
+      upsert: jest.fn(),
+    },
+    $transaction: jest.fn(),
+  };
+
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -17,6 +35,10 @@ describe('InterviewService', () => {
         {
           provide: AiService,
           useValue: mockAiService,
+        },
+        {
+          provide: PrismaService,
+          useValue: mockPrismaService,
         },
       ],
     }).compile();
