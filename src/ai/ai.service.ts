@@ -81,6 +81,16 @@ export class AiService {
     return provider === 'openai' ? 'gpt-5-nano' : 'solar-pro';
   }
 
+  private getTokenLimitParam(limit: number): {
+    max_tokens?: number;
+    max_completion_tokens?: number;
+  } {
+    if (this.getProvider() === 'openai') {
+      return { max_completion_tokens: limit };
+    }
+    return { max_tokens: limit };
+  }
+
   async generateInterviewReport(params: GenerateReportParams): Promise<string> {
     const { prompt } = params;
     const model = this.getConfiguredModel();
@@ -96,7 +106,7 @@ export class AiService {
         { role: 'user', content: prompt },
       ],
       temperature: 0.2,
-      max_tokens: 1500,
+      ...this.getTokenLimitParam(1500),
     });
 
     return response.choices[0]?.message?.content?.trim() || '';
@@ -145,7 +155,7 @@ export class AiService {
           },
         ],
         temperature: 0.7,
-        max_tokens: 500,
+        ...this.getTokenLimitParam(500),
       });
 
       let questionText =
