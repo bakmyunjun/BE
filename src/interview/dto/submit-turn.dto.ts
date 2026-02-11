@@ -13,13 +13,6 @@ import {
  * 얼굴 metrics
  */
 export class FaceMetricsDto {
-  @ApiPropertyOptional({ example: 0.85, description: '평균 표정 점수 (0~1)' })
-  @IsOptional()
-  @IsNumber()
-  @Min(0)
-  @Max(1)
-  avgExpressionScore?: number;
-
   @ApiPropertyOptional({
     example: 120,
     description: '얼굴 검출된 프레임 수',
