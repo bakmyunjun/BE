@@ -43,6 +43,38 @@ export class InterviewService {
     }
   }
 
+  private toDatePrefix(date: Date): string {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  }
+
+  private async resolveInterviewTitle(rawTitle?: string): Promise<string> {
+    const trimmed = rawTitle?.trim();
+    if (trimmed) return trimmed;
+
+    const datePrefix = this.toDatePrefix(new Date());
+    const pattern = new RegExp(`^${datePrefix} \\((\\d+)\\)$`);
+
+    const rows = await this.prisma.interviewSession.findMany({
+      where: { title: { startsWith: `${datePrefix} (` } },
+      select: { title: true },
+    });
+
+    let maxSeq = 0;
+    for (const row of rows) {
+      if (!row.title) continue;
+      const match = row.title.match(pattern);
+      if (!match) continue;
+      const seq = Number.parseInt(match[1], 10);
+      if (Number.isFinite(seq)) maxSeq = Math.max(maxSeq, seq);
+    }
+
+    const nextSeq = String(maxSeq + 1).padStart(2, '0');
+    return `${datePrefix} (${nextSeq})`;
+  }
+
   private toApiStatus(
     status: 'in_progress' | 'analyzing' | 'done' | 'failed',
   ): 'IN_PROGRESS' | 'ANALYZING' | 'DONE' | 'FAILED' {
@@ -183,6 +215,7 @@ export class InterviewService {
 
     // 4) DB 저장: session + 첫 질문 turn 생성
     const startedAt = new Date();
+    const resolvedTitle = await this.resolveInterviewTitle(dto.title);
     const parsedUserId = this.parseUserId(userId);
     const dbUserId = parsedUserId
       ? (await this.prisma.user.findUnique({
@@ -196,7 +229,7 @@ export class InterviewService {
         data: {
           sessionId: interviewId,
           userId: dbUserId,
-          title: dto.title,
+          title: resolvedTitle,
           // subTopicIds까지 포함해 재시작/스케일아웃에서도 다음 질문 생성 가능하도록 JSON 문자열로 저장
           topic: JSON.stringify({
             mainTopicId: dto.mainTopicId,
@@ -232,7 +265,7 @@ export class InterviewService {
     // 6) 응답 구성
     return {
       interviewId,
-      title: dto.title,
+      title: resolvedTitle,
       topics: { main, subs },
       status: 'IN_PROGRESS',
       turnIndex: 1,

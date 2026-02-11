@@ -1,18 +1,18 @@
-import { ApiProperty } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import {
   IsArray,
   ArrayUnique,
   IsString,
-  MinLength,
   MaxLength,
+  IsOptional,
 } from 'class-validator';
 
 export class CreateInterviewDto {
-  @ApiProperty({ example: '프론트엔드 모의면접' })
+  @ApiPropertyOptional({ example: '프론트엔드 모의면접' })
+  @IsOptional()
   @IsString()
-  @MinLength(1)
   @MaxLength(50)
-  title: string;
+  title?: string;
 
   @ApiProperty({ example: 'frontend' })
   @IsString()
