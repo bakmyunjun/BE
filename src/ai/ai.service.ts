@@ -81,43 +81,76 @@ export class AiService {
     return provider === 'openai' ? 'gpt-5-nano' : 'solar-pro';
   }
 
-  private getTokenLimitParam(limit: number): {
-    max_tokens?: number;
-    max_completion_tokens?: number;
-  } {
-    if (this.getProvider() === 'openai') {
-      return { max_completion_tokens: limit };
-    }
-    return { max_tokens: limit };
+  private extractResponseText(response: {
+    output_text?: string;
+    output?: Array<{
+      type?: string;
+      content?: Array<{ type?: string; text?: string }>;
+    }>;
+  }): string {
+    const outputText = response.output_text?.trim();
+    if (outputText) return outputText;
+
+    const segments =
+      response.output
+        ?.flatMap((item) =>
+          (item.content ?? [])
+            .filter((c) => c.type === 'output_text' && typeof c.text === 'string')
+            .map((c) => c.text as string),
+        )
+        .filter((t) => t.trim().length > 0) ?? [];
+    return segments.join('\n').trim();
   }
 
-  private getTemperatureParam(value: number): { temperature?: number } {
-    // 일부 OpenAI 모델(gpt-5 계열)은 temperature 커스텀 값을 지원하지 않는다.
-    if (this.getProvider() === 'openai') {
-      return {};
-    }
-    return { temperature: value };
-  }
-
-  async generateInterviewReport(params: GenerateReportParams): Promise<string> {
-    const { prompt } = params;
+  private async generateText(params: {
+    systemPrompt: string;
+    userPrompt: string;
+    tokenLimit: number;
+    temperature?: number;
+  }): Promise<string> {
+    const { systemPrompt, userPrompt, tokenLimit, temperature } = params;
+    const provider = this.getProvider();
     const model = this.getConfiguredModel();
+
+    if (provider === 'openai') {
+      const response = await this.getClient().responses.create({
+        model,
+        input: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: userPrompt },
+        ],
+        max_output_tokens: tokenLimit,
+      });
+      return this.extractResponseText(response);
+    }
 
     const response = await this.getClient().chat.completions.create({
       model,
       messages: [
-        {
-          role: 'system',
-          content:
-            'You are a strict JSON generator. Output JSON only. No markdown.',
-        },
-        { role: 'user', content: prompt },
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: userPrompt },
       ],
-      ...this.getTemperatureParam(0.2),
-      ...this.getTokenLimitParam(1500),
+      temperature,
+      max_tokens: tokenLimit,
     });
 
     return response.choices[0]?.message?.content?.trim() || '';
+  }
+
+  async generateInterviewReport(params: GenerateReportParams): Promise<string> {
+    const { prompt } = params;
+    const text = await this.generateText({
+      systemPrompt: 'You are a strict JSON generator. Output JSON only. No markdown.',
+      userPrompt: prompt,
+      tokenLimit: 1500,
+      temperature: 0.2,
+    });
+
+    if (!text) {
+      throw new Error('AI report response was empty');
+    }
+
+    return text;
   }
 
   /**
@@ -150,25 +183,18 @@ export class AiService {
         `질문 생성 요청: 주제=${mainTopicId}, 서브토픽=${subTopicIds.join(', ')}, 턴=${turnIndex}, 타입=${questionType}`,
       );
 
-      const response = await this.getClient().chat.completions.create({
-        model: this.getConfiguredModel(),
-        messages: [
-          {
-            role: 'system',
-            content: this.getSystemPrompt(),
-          },
-          {
-            role: 'user',
-            content: prompt,
-          },
-        ],
-        ...this.getTemperatureParam(0.7),
-        ...this.getTokenLimitParam(500),
+      const responseText = await this.generateText({
+        systemPrompt: this.getSystemPrompt(),
+        userPrompt: prompt,
+        tokenLimit: 500,
+        temperature: 0.7,
       });
 
-      let questionText =
-        response.choices[0]?.message?.content?.trim() ||
-        '질문을 생성할 수 없습니다.';
+      if (!responseText) {
+        throw new Error('AI question response was empty');
+      }
+
+      let questionText = responseText;
 
       // 여러 질문이 생성된 경우 첫 번째 질문만 추출
       // 줄바꿈으로 구분된 경우 첫 번째 질문만 사용
