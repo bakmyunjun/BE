@@ -1,4 +1,5 @@
 import { Test, TestingModule } from '@nestjs/testing';
+import { ServiceUnavailableException } from '@nestjs/common';
 import { InterviewService } from './interview.service';
 import { AiService } from '../ai/ai.service';
 import { PrismaService } from '../database/prisma.service';
@@ -61,5 +62,23 @@ describe('InterviewService', () => {
 
   it('should be defined', () => {
     expect(service).toBeDefined();
+  });
+
+  it('maps OpenAI insufficient_quota to ServiceUnavailableException on create', async () => {
+    mockAiService.generateInterviewQuestion.mockRejectedValueOnce({
+      status: 429,
+      code: 'insufficient_quota',
+    });
+
+    await expect(
+      service.createAndStart(
+        {
+          title: '테스트 면접',
+          mainTopicId: 'backend',
+          subTopicIds: ['nestjs'],
+        },
+        '1',
+      ),
+    ).rejects.toBeInstanceOf(ServiceUnavailableException);
   });
 });

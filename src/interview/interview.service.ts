@@ -3,6 +3,8 @@ import {
   BadRequestException,
   NotFoundException,
   Logger,
+  TooManyRequestsException,
+  ServiceUnavailableException,
 } from '@nestjs/common';
 import type { Prisma } from '@prisma/client';
 import { CreateInterviewDto } from './dto/create-interview.dto';
@@ -94,6 +96,50 @@ export class InterviewService {
     return { mainTopicId: topic, subTopicIds: [] };
   }
 
+  private isInsufficientQuotaError(error: unknown): boolean {
+    if (!error || typeof error !== 'object') return false;
+
+    const e = error as {
+      status?: unknown;
+      code?: unknown;
+      type?: unknown;
+      error?: { code?: unknown; type?: unknown };
+    };
+
+    return (
+      e.status === 429 &&
+      (e.code === 'insufficient_quota' ||
+        e.type === 'insufficient_quota' ||
+        e.error?.code === 'insufficient_quota' ||
+        e.error?.type === 'insufficient_quota')
+    );
+  }
+
+  private isRateLimitError(error: unknown): boolean {
+    if (!error || typeof error !== 'object') return false;
+    const e = error as { status?: unknown };
+    return e.status === 429;
+  }
+
+  private mapAiQuestionError(
+    error: unknown,
+    fallbackMessage: string,
+  ): BadRequestException | TooManyRequestsException | ServiceUnavailableException {
+    if (this.isInsufficientQuotaError(error)) {
+      return new ServiceUnavailableException(
+        'AI 서비스 사용량 한도를 초과했습니다. 관리자에게 문의하거나 잠시 후 다시 시도해주세요.',
+      );
+    }
+
+    if (this.isRateLimitError(error)) {
+      return new TooManyRequestsException(
+        'AI 요청이 일시적으로 많습니다. 잠시 후 다시 시도해주세요.',
+      );
+    }
+
+    return new BadRequestException(fallbackMessage);
+  }
+
   async createAndStart(
     dto: CreateInterviewDto,
     userId: string,
@@ -127,9 +173,10 @@ export class InterviewService {
       this.logger.log(`첫 질문 생성 완료: ${firstQuestion.questionId}`);
     } catch (error) {
       this.logger.error('AI 질문 생성 실패', error);
-      throw new BadRequestException(
+      throw this.mapAiQuestionError(
+        error,
         '질문 생성에 실패했습니다. 잠시 후 다시 시도해주세요.',
-        );
+      );
     }
 
     // 4) DB 저장: session + 첫 질문 turn 생성
@@ -390,7 +437,8 @@ export class InterviewService {
       );
     } catch (error) {
       this.logger.error('다음 질문 생성 실패', error);
-      throw new BadRequestException(
+      throw this.mapAiQuestionError(
+        error,
         '다음 질문 생성에 실패했습니다. 잠시 후 다시 시도해주세요.',
       );
     }
