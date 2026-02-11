@@ -125,6 +125,7 @@ export class ReportService implements OnModuleInit, OnModuleDestroy {
         : undefined;
 
     try {
+      const model = this.aiService.getConfiguredModel();
       const prompt = this.buildReportPrompt(session);
       const rawText = await this.aiService.generateInterviewReport({ prompt });
       const parsed = this.parseReportJson(rawText);
@@ -144,7 +145,7 @@ export class ReportService implements OnModuleInit, OnModuleDestroy {
           resultJson,
           totalScore,
           durationSec,
-          model: 'solar-pro',
+          model,
           promptVersion: 'v1',
           generatedAt: new Date(),
         },
@@ -153,7 +154,7 @@ export class ReportService implements OnModuleInit, OnModuleDestroy {
           resultJson,
           totalScore,
           durationSec,
-          model: 'solar-pro',
+          model,
           promptVersion: 'v1',
           generatedAt: new Date(),
         },
@@ -176,7 +177,7 @@ export class ReportService implements OnModuleInit, OnModuleDestroy {
           status: 'failed',
           resultJson: failure,
           durationSec,
-          model: 'solar-pro',
+          model: this.aiService.getConfiguredModel(),
           promptVersion: 'v1',
           generatedAt: new Date(),
         },
@@ -184,7 +185,7 @@ export class ReportService implements OnModuleInit, OnModuleDestroy {
           status: 'failed',
           resultJson: failure,
           durationSec,
-          model: 'solar-pro',
+          model: this.aiService.getConfiguredModel(),
           promptVersion: 'v1',
           generatedAt: new Date(),
         },

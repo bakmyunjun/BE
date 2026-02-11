@@ -25,6 +25,7 @@ export interface GenerateReportParams {
 export class AiService {
   private readonly logger = new Logger(AiService.name);
   private client?: OpenAI;
+  private cachedModel?: string;
 
   constructor(private readonly configService: ConfigService<Env>) {
     // NOTE: client는 필요 시점에만 초기화 (development에서 키 없이도 서버 부팅 가능)
@@ -33,24 +34,59 @@ export class AiService {
   private getClient(): OpenAI {
     if (this.client) return this.client;
 
-    const apiKey = this.configService.get('UPSTAGE_API_KEY');
+    const provider = this.getProvider();
+    const apiKey =
+      provider === 'openai'
+        ? this.configService.get('OPENAI_API_KEY')
+        : this.configService.get('UPSTAGE_API_KEY');
+
     if (!apiKey) {
-      throw new Error('UPSTAGE_API_KEY is not set');
+      throw new Error(
+        provider === 'openai'
+          ? 'OPENAI_API_KEY is not set'
+          : 'UPSTAGE_API_KEY is not set',
+      );
     }
 
-    this.client = new OpenAI({
-      apiKey,
-      baseURL: 'https://api.upstage.ai/v1/solar',
-    });
+    const baseURL =
+      this.configService.get('OPENAI_BASE_URL') ??
+      (provider === 'upstage' ? 'https://api.upstage.ai/v1/solar' : undefined);
+
+    this.client = new OpenAI({ apiKey, baseURL });
+    this.cachedModel = this.resolveModel(provider);
 
     return this.client;
   }
 
+  getConfiguredModel(): string {
+    if (this.cachedModel) return this.cachedModel;
+    const provider = this.getProvider();
+    const model = this.resolveModel(provider);
+    this.cachedModel = model;
+    return model;
+  }
+
+  private getProvider(): 'openai' | 'upstage' {
+    const configuredProvider = this.configService.get('AI_PROVIDER');
+    if (configuredProvider === 'openai' || configuredProvider === 'upstage') {
+      return configuredProvider;
+    }
+    if (this.configService.get('OPENAI_API_KEY')) return 'openai';
+    return 'upstage';
+  }
+
+  private resolveModel(provider: 'openai' | 'upstage'): string {
+    const configuredModel = this.configService.get('AI_MODEL');
+    if (configuredModel) return configuredModel;
+    return provider === 'openai' ? 'gpt-5-nano' : 'solar-pro';
+  }
+
   async generateInterviewReport(params: GenerateReportParams): Promise<string> {
     const { prompt } = params;
+    const model = this.getConfiguredModel();
 
     const response = await this.getClient().chat.completions.create({
-      model: 'solar-pro',
+      model,
       messages: [
         {
           role: 'system',
@@ -97,7 +133,7 @@ export class AiService {
       );
 
       const response = await this.getClient().chat.completions.create({
-        model: 'solar-pro',
+        model: this.getConfiguredModel(),
         messages: [
           {
             role: 'system',

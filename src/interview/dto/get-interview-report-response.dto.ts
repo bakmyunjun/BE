@@ -11,7 +11,7 @@ export class InterviewReportPayloadDto {
   @ApiPropertyOptional({ example: 615 })
   durationSec?: number;
 
-  @ApiPropertyOptional({ example: 'solar-pro' })
+  @ApiPropertyOptional({ example: 'gpt-5-nano' })
   model?: string | null;
 
   @ApiPropertyOptional({ example: 'v1' })
@@ -44,4 +44,3 @@ export class GetInterviewReportDataDto {
 }
 
 export class GetInterviewReportResponseDto extends SuccessResponseDto<GetInterviewReportDataDto> {}
-

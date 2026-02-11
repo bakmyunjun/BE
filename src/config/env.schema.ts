@@ -50,17 +50,41 @@ const envSchema = z.object({
       val === undefined ? undefined : val === 'true' || val === '1',
     ),
   REPORT_WORKER_INTERVAL_MS: z.coerce.number().int().positive().optional(),
-  // Upstage Solar API Key
+  // AI provider 설정
+  AI_PROVIDER: z.enum(['openai', 'upstage']).optional(),
+  AI_MODEL: z.string().optional(),
+  OPENAI_BASE_URL: z.string().url().optional(),
+  OPENAI_API_KEY: z
+    .string()
+    .optional()
+    .transform((val) => (val ? val.trim() : undefined)),
+  // Upstage Solar API Key (legacy)
   UPSTAGE_API_KEY: z
     .string()
     .optional()
     .transform((val) => (val ? val.trim() : undefined)),
 }).superRefine((env, ctx) => {
-  if (env.NODE_ENV === 'production' && !env.UPSTAGE_API_KEY) {
+  if (env.NODE_ENV === 'production' && !env.OPENAI_API_KEY && !env.UPSTAGE_API_KEY) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['OPENAI_API_KEY'],
+      message: 'OPENAI_API_KEY or UPSTAGE_API_KEY is required in production',
+    });
+  }
+
+  if (env.AI_PROVIDER === 'openai' && !env.OPENAI_API_KEY) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['OPENAI_API_KEY'],
+      message: 'OPENAI_API_KEY is required when AI_PROVIDER=openai',
+    });
+  }
+
+  if (env.AI_PROVIDER === 'upstage' && !env.UPSTAGE_API_KEY) {
     ctx.addIssue({
       code: z.ZodIssueCode.custom,
       path: ['UPSTAGE_API_KEY'],
-      message: 'UPSTAGE_API_KEY is required in production',
+      message: 'UPSTAGE_API_KEY is required when AI_PROVIDER=upstage',
     });
   }
 
