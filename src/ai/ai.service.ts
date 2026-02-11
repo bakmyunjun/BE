@@ -123,6 +123,7 @@ export class AiService {
         instructions: systemPrompt,
         input: userPrompt,
         max_output_tokens: tokenLimit,
+        reasoning: { effort: 'minimal' },
       });
 
       const text = this.extractResponseText(response);
