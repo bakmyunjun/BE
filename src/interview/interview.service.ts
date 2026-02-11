@@ -3,7 +3,8 @@ import {
   BadRequestException,
   NotFoundException,
   Logger,
-  TooManyRequestsException,
+  HttpException,
+  HttpStatus,
   ServiceUnavailableException,
 } from '@nestjs/common';
 import type { Prisma } from '@prisma/client';
@@ -124,7 +125,7 @@ export class InterviewService {
   private mapAiQuestionError(
     error: unknown,
     fallbackMessage: string,
-  ): BadRequestException | TooManyRequestsException | ServiceUnavailableException {
+  ): BadRequestException | HttpException | ServiceUnavailableException {
     if (this.isInsufficientQuotaError(error)) {
       return new ServiceUnavailableException(
         'AI 서비스 사용량 한도를 초과했습니다. 관리자에게 문의하거나 잠시 후 다시 시도해주세요.',
@@ -132,8 +133,9 @@ export class InterviewService {
     }
 
     if (this.isRateLimitError(error)) {
-      return new TooManyRequestsException(
+      return new HttpException(
         'AI 요청이 일시적으로 많습니다. 잠시 후 다시 시도해주세요.',
+        HttpStatus.TOO_MANY_REQUESTS,
       );
     }
 
