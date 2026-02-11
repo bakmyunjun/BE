@@ -91,6 +91,14 @@ export class AiService {
     return { max_tokens: limit };
   }
 
+  private getTemperatureParam(value: number): { temperature?: number } {
+    // 일부 OpenAI 모델(gpt-5 계열)은 temperature 커스텀 값을 지원하지 않는다.
+    if (this.getProvider() === 'openai') {
+      return {};
+    }
+    return { temperature: value };
+  }
+
   async generateInterviewReport(params: GenerateReportParams): Promise<string> {
     const { prompt } = params;
     const model = this.getConfiguredModel();
@@ -105,7 +113,7 @@ export class AiService {
         },
         { role: 'user', content: prompt },
       ],
-      temperature: 0.2,
+      ...this.getTemperatureParam(0.2),
       ...this.getTokenLimitParam(1500),
     });
 
@@ -154,7 +162,7 @@ export class AiService {
             content: prompt,
           },
         ],
-        temperature: 0.7,
+        ...this.getTemperatureParam(0.7),
         ...this.getTokenLimitParam(500),
       });
 
