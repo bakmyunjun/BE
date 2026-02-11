@@ -85,7 +85,7 @@ export class AiService {
     output_text?: string;
     output?: Array<{
       type?: string;
-      content?: Array<{ type?: string; text?: string }>;
+      content?: Array<{ type?: string; text?: string | { value?: string } }>;
     }>;
   }): string {
     const outputText = response.output_text?.trim();
@@ -95,8 +95,13 @@ export class AiService {
       response.output
         ?.flatMap((item) =>
           (item.content ?? [])
-            .filter((c) => c.type === 'output_text' && typeof c.text === 'string')
-            .map((c) => c.text as string),
+            .map((c) => {
+              if (c.type !== 'output_text' && c.type !== 'text') return '';
+              if (typeof c.text === 'string') return c.text;
+              if (c.text && typeof c.text === 'object') return c.text.value ?? '';
+              return '';
+            })
+            .filter((text) => text.trim().length > 0),
         )
         .filter((t) => t.trim().length > 0) ?? [];
     return segments.join('\n').trim();
@@ -115,13 +120,28 @@ export class AiService {
     if (provider === 'openai') {
       const response = await this.getClient().responses.create({
         model,
-        input: [
+        instructions: systemPrompt,
+        input: userPrompt,
+        max_output_tokens: tokenLimit,
+      });
+
+      const text = this.extractResponseText(response);
+      if (text) return text;
+
+      // responses API에서 빈 텍스트가 돌아오는 경우 chat.completions로 1회 폴백
+      this.logger.warn(
+        `OpenAI responses API returned empty text. fallback to chat.completions (model=${model})`,
+      );
+
+      const fallback = await this.getClient().chat.completions.create({
+        model,
+        messages: [
           { role: 'system', content: systemPrompt },
           { role: 'user', content: userPrompt },
         ],
-        max_output_tokens: tokenLimit,
+        max_completion_tokens: tokenLimit,
       });
-      return this.extractResponseText(response);
+      return fallback.choices[0]?.message?.content?.trim() || '';
     }
 
     const response = await this.getClient().chat.completions.create({
