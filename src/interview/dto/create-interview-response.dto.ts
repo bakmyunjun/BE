@@ -32,9 +32,6 @@ export class CreateInterviewDataDto {
   @ApiProperty({ example: 'intv_123' })
   interviewId: string;
 
-  @ApiProperty({ example: '프론트엔드 모의면접' })
-  title: string;
-
   @ApiProperty({ type: TopicsDto })
   topics: TopicsDto;
 

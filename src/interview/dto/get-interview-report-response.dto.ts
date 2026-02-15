@@ -33,6 +33,9 @@ export class GetInterviewReportDataDto {
   @ApiProperty({ example: 'intv_123' })
   interviewId: string;
 
+  @ApiProperty({ example: '프론트엔드 모의면접' })
+  title: string | null;
+
   @ApiProperty({
     example: 'ANALYZING',
     enum: ['IN_PROGRESS', 'ANALYZING', 'DONE', 'FAILED'],

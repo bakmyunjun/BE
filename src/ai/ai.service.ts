@@ -26,6 +26,7 @@ export class AiService {
   private readonly logger = new Logger(AiService.name);
   private client?: OpenAI;
   private cachedModel?: string;
+  private static readonly MAX_QUESTION_LENGTH = 80;
 
   constructor(private readonly configService: ConfigService<Env>) {
     // NOTE: client는 필요 시점에만 초기화 (development에서 키 없이도 서버 부팅 가능)
@@ -158,6 +159,29 @@ export class AiService {
     return response.choices[0]?.message?.content?.trim() || '';
   }
 
+  private normalizeQuestionText(raw: string): string {
+    let text = raw.replace(/\s+/g, ' ').trim();
+    text = text.replace(/^(질문|면접 질문)\s*[:：]\s*/i, '');
+
+    const firstQuestionMark = text.indexOf('?');
+    if (firstQuestionMark !== -1) {
+      const secondQuestionMark = text.indexOf('?', firstQuestionMark + 1);
+      if (secondQuestionMark !== -1) {
+        text = text.slice(0, firstQuestionMark + 1).trim();
+      }
+    }
+
+    if (text.length > AiService.MAX_QUESTION_LENGTH) {
+      text = text.slice(0, AiService.MAX_QUESTION_LENGTH).trim();
+    }
+
+    if (text.length > 0 && !text.endsWith('?')) {
+      text = `${text}?`;
+    }
+
+    return text;
+  }
+
   async generateInterviewReport(params: GenerateReportParams): Promise<string> {
     const { prompt } = params;
     const text = await this.generateText({
@@ -207,8 +231,8 @@ export class AiService {
       const responseText = await this.generateText({
         systemPrompt: this.getSystemPrompt(),
         userPrompt: prompt,
-        tokenLimit: 500,
-        temperature: 0.7,
+        tokenLimit: 120,
+        temperature: 0.3,
       });
 
       if (!responseText) {
@@ -258,6 +282,8 @@ export class AiService {
         }
       }
 
+      questionText = this.normalizeQuestionText(questionText);
+
       const questionId = `q_${Date.now()}_${turnIndex}`;
 
       this.logger.log(`질문 생성 완료: ${questionId}`);
@@ -277,22 +303,15 @@ export class AiService {
    * 시스템 프롬프트: 면접관 역할 정의
    */
   private getSystemPrompt(): string {
-    return `당신은 경험이 풍부한 기술 면접관입니다. 
-지원자의 기술 역량을 평가하기 위한 면접 질문을 생성합니다.
+    return `당신은 기술 면접관입니다.
+질문 생성 규칙:
+1) 한국어 존댓말로 질문 1개만 작성
+2) 반드시 한 문장
+3) 80자 이하
+4) 설명, 예시, 배경, 번호, 코드블록 금지
+5) 물음표(?)는 최대 1개
 
-질문 생성 원칙:
-1. 지원자의 실제 이해도를 평가할 수 있는 질문을 만드세요
-2. 단순 암기가 아닌 개념 이해와 응용력을 확인하세요
-3. 실무 경험과 연결될 수 있는 질문을 우선하세요
-4. 난이도는 점진적으로 높아지도록 조절하세요
-5. 질문은 명확하고 구체적이어야 합니다
-6. 이전 질문과 중복되지 않도록 하세요
-
-중요: 응답 형식
-- 반드시 하나의 질문만 생성하세요 (여러 질문을 나열하지 마세요)
-- 질문만 출력하세요 (설명, 부가 정보, 번호 매기기 없이)
-- 한 문장으로 간결하게 작성하세요
-- 예시: "React의 Virtual DOM이 무엇인지 설명해주세요." (이런 형식으로 하나만)`;
+출력은 질문 문장만 작성하세요.`;
   }
 
   /**
@@ -315,46 +334,40 @@ export class AiService {
       isFollowup,
     } = params;
 
-    let prompt = `면접 주제: ${mainTopicId}\n`;
+    let prompt = `주제: ${mainTopicId}\n`;
 
     if (subTopicIds.length > 0) {
       prompt += `세부 주제: ${subTopicIds.join(', ')}\n`;
     }
 
-    prompt += `현재 턴: ${turnIndex}\n`;
+    prompt += `턴: ${turnIndex}\n`;
 
-    // 꼬리질문인 경우 답변 기반으로 질문 생성
-    if (isFollowup && answerText) {
-      prompt += `\n이전 질문에 대한 지원자의 답변:\n${answerText}\n\n`;
-      prompt += '위 답변을 바탕으로 하나의 꼬리질문만 생성해주세요.\n';
-      prompt += '- 답변의 깊이를 더 파고들 수 있는 질문을 만드세요\n';
-      prompt +=
-        '- 답변에서 언급된 내용을 더 자세히 물어보거나, 관련된 심화 내용을 질문하세요\n';
-      prompt +=
-        '- 답변의 부족한 부분이나 보완이 필요한 부분을 지적하는 질문도 좋습니다\n';
-      prompt +=
-        '\n중요: 반드시 하나의 질문만 생성하세요. 여러 질문을 나열하지 마세요.\n';
+    if (isFollowup && answerText?.trim()) {
+      prompt += '모드: 꼬리질문\n';
+      prompt += `기준 답변: ${answerText.trim()}\n`;
+      prompt += '요청: 답변의 핵심 개념 1개를 더 깊게 묻는 질문 1개 생성\n';
     } else {
-      // 일반 질문 생성
+      prompt += '모드: 일반질문\n';
+      prompt += '요청: 중복되지 않는 질문 1개 생성\n';
+
       if (previousQuestions.length > 0) {
-        prompt += '\n이전 질문들:\n';
-        previousQuestions.forEach((q, i) => {
+        prompt += '이전 질문:\n';
+        previousQuestions.slice(-5).forEach((q, i) => {
           prompt += `${i + 1}. ${q}\n`;
         });
-        prompt += '\n위 질문들과 중복되지 않는 새로운 질문을 생성해주세요.\n';
       }
 
       if (turnIndex === 1) {
-        prompt += '\n첫 번째 질문이므로 기본적인 개념부터 시작하세요.';
+        prompt += '난이도: 기본\n';
       } else if (turnIndex <= 3) {
-        prompt += '\n초반 질문이므로 중간 난이도의 질문을 생성하세요.';
+        prompt += '난이도: 중간\n';
       } else {
-        prompt += '\n심화 질문을 생성하여 깊이 있는 이해도를 평가하세요.';
+        prompt += '난이도: 심화\n';
       }
-
-      prompt +=
-        '\n중요: 반드시 하나의 질문만 생성하세요. 여러 질문을 나열하지 마세요.';
     }
+
+    prompt += '출력 형식: 질문 한 문장만 출력\n';
+    prompt += '제한: 80자 이하\n';
 
     return prompt;
   }

@@ -265,7 +265,6 @@ export class InterviewService {
     // 6) 응답 구성
     return {
       interviewId,
-      title: resolvedTitle,
       topics: { main, subs },
       status: 'IN_PROGRESS',
       turnIndex: 1,
@@ -420,12 +419,7 @@ export class InterviewService {
         isFollowup,
       });
 
-      // 질문 유형 결정: 꼬리질문이면 "followup", 아니면 기존 로직 사용
-      questionType = isFollowup
-        ? 'followup'
-        : (dto.turnIndex + 1) % 3 === 1
-          ? 'base'
-          : 'followup';
+      questionType = isFollowup ? 'followup' : 'base';
 
       // 연속 꼬리질문 횟수 업데이트
       if (questionType === 'followup') {
@@ -502,6 +496,7 @@ export class InterviewService {
     userId: string,
   ): Promise<{
     interviewId: string;
+    title: string | null;
     interviewStatus: 'IN_PROGRESS' | 'ANALYZING' | 'DONE' | 'FAILED';
     report: {
       status: 'analyzing' | 'done' | 'failed';
@@ -517,6 +512,7 @@ export class InterviewService {
       where: { sessionId: interviewId },
       select: {
         sessionId: true,
+        title: true,
         userId: true,
         status: true,
         report: {
@@ -561,6 +557,7 @@ export class InterviewService {
 
     return {
       interviewId: session.sessionId,
+      title: session.title,
       interviewStatus,
       report,
     };

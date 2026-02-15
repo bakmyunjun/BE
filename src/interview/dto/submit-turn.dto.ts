@@ -6,7 +6,6 @@ import {
   IsOptional,
   Min,
   Max,
-  MinLength,
 } from 'class-validator';
 
 /**
@@ -75,7 +74,6 @@ export class SubmitTurnDto {
     description: '답변 텍스트 (STT 결과)',
   })
   @IsString()
-  @MinLength(1, { message: '답변을 입력해주세요' })
   answerText: string;
 
   @ApiProperty({ example: 1, description: '현재 턴 번호 (1~10)' })
