@@ -73,4 +73,7 @@ export class SubmitTurnDataDto {
 /**
  * 턴 제출 응답 DTO
  */
-export class SubmitTurnResponseDto extends SuccessResponseDto<SubmitTurnDataDto> {}
+export class SubmitTurnResponseDto extends SuccessResponseDto<SubmitTurnDataDto> {
+  @ApiProperty({ type: SubmitTurnDataDto })
+  data: SubmitTurnDataDto;
+}

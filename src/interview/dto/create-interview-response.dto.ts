@@ -45,4 +45,7 @@ export class CreateInterviewDataDto {
   firstQuestion: FirstQuestionDto;
 }
 
-export class CreateInterviewResponseDto extends SuccessResponseDto<CreateInterviewDataDto> {}
+export class CreateInterviewResponseDto extends SuccessResponseDto<CreateInterviewDataDto> {
+  @ApiProperty({ type: CreateInterviewDataDto })
+  data: CreateInterviewDataDto;
+}

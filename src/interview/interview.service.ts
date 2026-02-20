@@ -19,6 +19,9 @@ import { SubmitTurnDataDto } from './dto/submit-turn-response.dto';
 import { AiService, type GeneratedQuestion } from '../ai/ai.service';
 import { PrismaService } from '../database/prisma.service';
 import { ReportService } from '../report/report.service';
+import { PaginationQueryDto } from '../common/dto/pagination-query.dto';
+import { PaginationMetaDto } from '../common/dto/response.dto';
+import { GetInterviewReportsDataDto } from './dto/get-interview-reports-response.dto';
 
 const MAX_TURNS = 10;
 const MAX_CONSECUTIVE_FOLLOWUP = 2;
@@ -560,6 +563,78 @@ export class InterviewService {
       title: session.title,
       interviewStatus,
       report,
+    };
+  }
+
+  async getReports(
+    userId: string,
+    query: PaginationQueryDto,
+  ): Promise<GetInterviewReportsDataDto> {
+    const page = query.page || 1;
+    const size = query.size || 10;
+    const parsedUserId = this.parseUserId(userId);
+    const isProduction = process.env.NODE_ENV === 'production';
+
+    if (isProduction && !parsedUserId) {
+      throw new BadRequestException('잘못된 사용자 식별자입니다');
+    }
+
+    const where: Prisma.InterviewSessionWhereInput = isProduction
+      ? { userId: parsedUserId ?? undefined }
+      : parsedUserId
+        ? { OR: [{ userId: parsedUserId }, { userId: null }] }
+        : { userId: null };
+
+    const [totalItems, sessions] = await this.prisma.$transaction([
+      this.prisma.interviewSession.count({ where }),
+      this.prisma.interviewSession.findMany({
+        where,
+        orderBy: { createdAt: 'desc' },
+        skip: query.skip,
+        take: query.take,
+        select: {
+          sessionId: true,
+          title: true,
+          status: true,
+          createdAt: true,
+          report: {
+            select: {
+              status: true,
+              totalScore: true,
+              generatedAt: true,
+            },
+          },
+        },
+      }),
+    ]);
+
+    const items = sessions.map((session) => ({
+      interviewId: session.sessionId,
+      title: session.title,
+      interviewStatus: this.toApiStatus(session.status),
+      reportStatus: session.report?.status ?? null,
+      totalScore:
+        typeof session.report?.totalScore === 'number'
+          ? session.report.totalScore
+          : null,
+      generatedAt: session.report?.generatedAt
+        ? session.report.generatedAt.toISOString()
+        : null,
+      createdAt: session.createdAt.toISOString(),
+    }));
+
+    const pageMeta = new PaginationMetaDto(page, size, totalItems);
+
+    return {
+      items,
+      page: {
+        number: pageMeta.number,
+        size: pageMeta.size,
+        totalItems: pageMeta.totalItems,
+        totalPages: pageMeta.totalPages,
+        hasNext: pageMeta.hasNext,
+        hasPrev: pageMeta.hasPrev,
+      },
     };
   }
 }

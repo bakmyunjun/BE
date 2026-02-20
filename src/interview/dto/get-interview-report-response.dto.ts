@@ -46,4 +46,7 @@ export class GetInterviewReportDataDto {
   report?: InterviewReportPayloadDto | null;
 }
 
-export class GetInterviewReportResponseDto extends SuccessResponseDto<GetInterviewReportDataDto> {}
+export class GetInterviewReportResponseDto extends SuccessResponseDto<GetInterviewReportDataDto> {
+  @ApiProperty({ type: GetInterviewReportDataDto })
+  data: GetInterviewReportDataDto;
+}
