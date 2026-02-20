@@ -75,5 +75,5 @@ export class SubmitTurnDataDto {
  */
 export class SubmitTurnResponseDto extends SuccessResponseDto<SubmitTurnDataDto> {
   @ApiProperty({ type: SubmitTurnDataDto })
-  data: SubmitTurnDataDto;
+  declare data: SubmitTurnDataDto;
 }

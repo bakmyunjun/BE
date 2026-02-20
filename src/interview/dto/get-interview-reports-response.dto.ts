@@ -57,5 +57,5 @@ export class GetInterviewReportsDataDto {
 
 export class GetInterviewReportsResponseDto extends SuccessResponseDto<GetInterviewReportsDataDto> {
   @ApiProperty({ type: GetInterviewReportsDataDto })
-  data: GetInterviewReportsDataDto;
+  declare data: GetInterviewReportsDataDto;
 }
