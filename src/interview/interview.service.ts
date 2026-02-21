@@ -28,6 +28,61 @@ const MAX_CONSECUTIVE_FOLLOWUP = 2;
 const DEFAULT_TOTAL_LIMIT_SEC = 10 * 60;
 const DEFAULT_TURN_LIMIT_SEC = 60;
 
+type ReportTabView = {
+  header: {
+    title: string;
+    summary: string;
+    generatedAt: string | null;
+  };
+  summary: {
+    totalScore: number | null;
+    strengths: string[];
+    weaknesses: string[];
+    competencies: Array<{
+      key: string;
+      label: string;
+      level: string;
+      score: number | null;
+      comment: string;
+    }>;
+  };
+  analysis: {
+    textPatternIssues: Array<{
+      type: string;
+      severity: string;
+      description: string;
+      affectedTurnIndexes: number[];
+    }>;
+    perTurnScores: Array<{ turnIndex: number; score: number | null }>;
+  };
+  coaching: {
+    actionItems: string[];
+    turnSuggestions: Array<{
+      turnIndex: number;
+      question: string;
+      weakness: string | null;
+      suggestion: string | null;
+    }>;
+  };
+  record: {
+    turns: Array<{
+      turnIndex: number;
+      questionType: 'base' | 'followup';
+      questionText: string;
+      answerText: string;
+      score: number | null;
+      feedback: string | null;
+      highlight: {
+        strength: string | null;
+        weakness: string | null;
+        suggestion: string | null;
+      } | null;
+      submittedAt: string | null;
+      metrics: Record<string, unknown> | null;
+    }>;
+  };
+};
+
 @Injectable()
 export class InterviewService {
   private readonly logger = new Logger(InterviewService.name);
@@ -130,6 +185,216 @@ export class InterviewService {
     }
 
     return { mainTopicId: topic, subTopicIds: [] };
+  }
+
+  private toJsonObject(
+    value: Prisma.JsonValue | null | undefined,
+  ): Record<string, unknown> | null {
+    if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+    return value as Record<string, unknown>;
+  }
+
+  private toStringArray(value: unknown): string[] {
+    if (!Array.isArray(value)) return [];
+    return value.filter((item): item is string => typeof item === 'string');
+  }
+
+  private toNumber(value: unknown): number | null {
+    if (typeof value === 'number' && Number.isFinite(value)) return value;
+    return null;
+  }
+
+  private toStringValue(value: unknown, fallback = ''): string {
+    return typeof value === 'string' ? value : fallback;
+  }
+
+  private toNumberArray(value: unknown): number[] {
+    if (!Array.isArray(value)) return [];
+    return value.filter(
+      (item): item is number => typeof item === 'number' && Number.isFinite(item),
+    );
+  }
+
+  private normalizeReportView(params: {
+    interviewId: string;
+    title: string | null;
+    reportTotalScore: number | null;
+    reportGeneratedAt: Date | null;
+    reportResultJson: Prisma.JsonValue | null;
+    turns: Array<{
+      turnIndex: number;
+      questionType: 'base' | 'followup';
+      questionText: string;
+      answerText: string;
+      submittedAt: Date | null;
+      metricsJson: Prisma.JsonValue | null;
+    }>;
+  }): ReportTabView {
+    const {
+      interviewId,
+      title,
+      reportTotalScore,
+      reportGeneratedAt,
+      reportResultJson,
+      turns,
+    } = params;
+    const report = this.toJsonObject(reportResultJson);
+    const perTurnFeedbackRaw = Array.isArray(report?.perTurnFeedback)
+      ? report.perTurnFeedback
+      : [];
+    const perTurnFeedbackMap = new Map<
+      number,
+      {
+        score: number | null;
+        feedback: string | null;
+        highlight: {
+          strength: string | null;
+          weakness: string | null;
+          suggestion: string | null;
+        } | null;
+      }
+    >();
+
+    for (const item of perTurnFeedbackRaw) {
+      if (!item || typeof item !== 'object' || Array.isArray(item)) continue;
+      const obj = item as Record<string, unknown>;
+      const turnIndex = this.toNumber(obj.turnIndex);
+      if (!turnIndex) continue;
+
+      const highlightRaw =
+        obj.highlight && typeof obj.highlight === 'object' && !Array.isArray(obj.highlight)
+          ? (obj.highlight as Record<string, unknown>)
+          : null;
+
+      perTurnFeedbackMap.set(turnIndex, {
+        score: this.toNumber(obj.score),
+        feedback:
+          typeof obj.feedback === 'string' && obj.feedback.trim().length > 0
+            ? obj.feedback
+            : null,
+        highlight: highlightRaw
+          ? {
+              strength:
+                typeof highlightRaw.strength === 'string'
+                  ? highlightRaw.strength
+                  : null,
+              weakness:
+                typeof highlightRaw.weakness === 'string'
+                  ? highlightRaw.weakness
+                  : null,
+              suggestion:
+                typeof highlightRaw.suggestion === 'string'
+                  ? highlightRaw.suggestion
+                  : null,
+            }
+          : null,
+      });
+    }
+
+    const competenciesRaw =
+      report?.competencies &&
+      typeof report.competencies === 'object' &&
+      !Array.isArray(report.competencies)
+        ? (report.competencies as Record<string, unknown>)
+        : null;
+    const competencyItemsRaw = Array.isArray(competenciesRaw?.items)
+      ? competenciesRaw.items
+      : [];
+
+    const competencies = competencyItemsRaw
+      .filter((item): item is Record<string, unknown> => {
+        return !!item && typeof item === 'object' && !Array.isArray(item);
+      })
+      .map((item) => ({
+        key: this.toStringValue(item.key, 'UNKNOWN'),
+        label: this.toStringValue(item.label, '미분류'),
+        level: this.toStringValue(item.level, '보통'),
+        score: this.toNumber(item.score),
+        comment: this.toStringValue(item.comment, ''),
+      }));
+
+    const textPatternRaw =
+      report?.textPatternAnalysis &&
+      typeof report.textPatternAnalysis === 'object' &&
+      !Array.isArray(report.textPatternAnalysis)
+        ? (report.textPatternAnalysis as Record<string, unknown>)
+        : null;
+    const textPatternIssuesRaw = Array.isArray(textPatternRaw?.issues)
+      ? textPatternRaw.issues
+      : [];
+
+    const textPatternIssues = textPatternIssuesRaw
+      .filter((item): item is Record<string, unknown> => {
+        return !!item && typeof item === 'object' && !Array.isArray(item);
+      })
+      .map((item) => ({
+        type: this.toStringValue(item.type, '기타'),
+        severity: this.toStringValue(item.severity, 'INFO'),
+        description: this.toStringValue(item.description, ''),
+        affectedTurnIndexes: this.toNumberArray(item.affectedTurnIndexes),
+      }));
+
+    const recordTurns = turns.map((turn) => {
+      const feedback = perTurnFeedbackMap.get(turn.turnIndex);
+      const metrics = this.toJsonObject(turn.metricsJson);
+
+      return {
+        turnIndex: turn.turnIndex,
+        questionType: turn.questionType,
+        questionText: turn.questionText,
+        answerText: turn.answerText,
+        score: feedback?.score ?? null,
+        feedback: feedback?.feedback ?? null,
+        highlight: feedback?.highlight ?? null,
+        submittedAt: turn.submittedAt ? turn.submittedAt.toISOString() : null,
+        metrics,
+      };
+    });
+
+    const actionItems = [
+      ...this.toStringArray(report?.weaknesses),
+      ...recordTurns
+        .map((turn) => turn.highlight?.suggestion)
+        .filter((item): item is string => !!item && item.trim().length > 0),
+    ].slice(0, 6);
+
+    return {
+      header: {
+        title: title ?? `${interviewId} 면접 결과 리포트`,
+        summary: this.toStringValue(
+          report?.summary,
+          '아직 분석 결과가 충분하지 않아 요약 정보를 생성하지 못했다.',
+        ),
+        generatedAt: reportGeneratedAt ? reportGeneratedAt.toISOString() : null,
+      },
+      summary: {
+        totalScore: this.toNumber(report?.totalScore) ?? reportTotalScore,
+        strengths: this.toStringArray(report?.strengths),
+        weaknesses: this.toStringArray(report?.weaknesses),
+        competencies,
+      },
+      analysis: {
+        textPatternIssues,
+        perTurnScores: recordTurns.map((turn) => ({
+          turnIndex: turn.turnIndex,
+          score: turn.score,
+        })),
+      },
+      coaching: {
+        actionItems,
+        turnSuggestions: recordTurns
+          .filter((turn) => turn.highlight?.weakness || turn.highlight?.suggestion)
+          .map((turn) => ({
+            turnIndex: turn.turnIndex,
+            question: turn.questionText,
+            weakness: turn.highlight?.weakness ?? null,
+            suggestion: turn.highlight?.suggestion ?? null,
+          })),
+      },
+      record: {
+        turns: recordTurns,
+      },
+    };
   }
 
   private isInsufficientQuotaError(error: unknown): boolean {
@@ -509,6 +774,7 @@ export class InterviewService {
       promptVersion?: string | null;
       generatedAt?: string | null;
       result?: unknown;
+      view?: ReportTabView;
     } | null;
   }> {
     const session = await this.prisma.interviewSession.findUnique({
@@ -527,6 +793,17 @@ export class InterviewService {
             promptVersion: true,
             generatedAt: true,
             resultJson: true,
+          },
+        },
+        turns: {
+          orderBy: { turnIndex: 'asc' },
+          select: {
+            turnIndex: true,
+            questionType: true,
+            questionText: true,
+            answerText: true,
+            submittedAt: true,
+            metricsJson: true,
           },
         },
       },
@@ -555,6 +832,24 @@ export class InterviewService {
             ? session.report.generatedAt.toISOString()
             : null,
           result: session.report.resultJson ?? undefined,
+          view: this.normalizeReportView({
+            interviewId: session.sessionId,
+            title: session.title,
+            reportTotalScore:
+              typeof session.report.totalScore === 'number'
+                ? session.report.totalScore
+                : null,
+            reportGeneratedAt: session.report.generatedAt,
+            reportResultJson: session.report.resultJson,
+            turns: session.turns.map((turn) => ({
+              turnIndex: turn.turnIndex,
+              questionType: turn.questionType,
+              questionText: turn.questionText,
+              answerText: turn.answerText,
+              submittedAt: turn.submittedAt,
+              metricsJson: turn.metricsJson,
+            })),
+          }),
         }
       : null;
 
@@ -563,6 +858,73 @@ export class InterviewService {
       title: session.title,
       interviewStatus,
       report,
+    };
+  }
+
+  async regenerateReport(
+    interviewId: string,
+    userId: string,
+  ): Promise<{
+    interviewId: string;
+    status: 'ANALYZING';
+    message: string;
+  }> {
+    const session = await this.prisma.interviewSession.findUnique({
+      where: { sessionId: interviewId },
+      select: {
+        sessionId: true,
+        userId: true,
+        status: true,
+        turns: {
+          select: {
+            turnIndex: true,
+            answerText: true,
+          },
+        },
+      },
+    });
+
+    if (!session) throw new NotFoundException(`면접을 찾을 수 없습니다: ${interviewId}`);
+
+    const sessionUserId = session.userId ? String(session.userId) : null;
+    if (sessionUserId && sessionUserId !== userId) {
+      throw new BadRequestException('면접에 대한 권한이 없습니다');
+    }
+
+    if (session.status === 'in_progress') {
+      throw new BadRequestException(
+        '진행 중인 면접은 리포트를 재생성할 수 없습니다. 면접 종료 후 다시 시도해주세요.',
+      );
+    }
+
+    const hasAnyAnswer = session.turns.some(
+      (turn) => turn.answerText.trim().length > 0,
+    );
+    if (!hasAnyAnswer) {
+      throw new BadRequestException(
+        '제출된 답변이 없어 리포트를 생성할 수 없습니다.',
+      );
+    }
+
+    await this.prisma.interviewSession.update({
+      where: { sessionId: interviewId },
+      data: { status: 'analyzing' },
+    });
+    await this.reportService.upsertAnalyzingReport(interviewId);
+
+    setImmediate(() => {
+      void this.reportService.generateForSession(interviewId).catch((err) => {
+        this.logger.error(
+          `리포트 재생성 실패 - sessionId=${interviewId}`,
+          err,
+        );
+      });
+    });
+
+    return {
+      interviewId,
+      status: 'ANALYZING',
+      message: 'AI 리포트 재생성을 시작했습니다.',
     };
   }
 

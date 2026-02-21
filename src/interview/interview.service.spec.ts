@@ -22,6 +22,7 @@ describe('InterviewService', () => {
       findUnique: jest.fn(),
       findMany: jest.fn(),
       update: jest.fn(),
+      count: jest.fn(),
     },
     interviewTurn: {
       create: jest.fn(),
@@ -33,6 +34,7 @@ describe('InterviewService', () => {
 
   const mockReportService = {
     generateForSession: jest.fn(),
+    upsertAnalyzingReport: jest.fn(),
   };
 
   beforeEach(async () => {
@@ -122,6 +124,77 @@ describe('InterviewService', () => {
     const result = await service.getReport('intv_1', '999999');
 
     expect(result.title).toBe('백엔드 면접 1회차');
+  });
+
+  it('getReport response includes normalized report view', async () => {
+    mockPrismaService.interviewSession.findUnique.mockResolvedValue({
+      sessionId: 'intv_1',
+      title: '백엔드 면접 1회차',
+      userId: null,
+      status: 'done',
+      report: {
+        status: 'done',
+        totalScore: 80,
+        durationSec: 600,
+        model: 'gpt-5-nano',
+        promptVersion: 'v1',
+        generatedAt: new Date('2026-02-21T00:00:00.000Z'),
+        resultJson: {
+          summary: '전반적으로 논리적인 답변을 제공했다.',
+          strengths: ['논리성이 좋다.'],
+          weaknesses: ['구체성이 부족하다.'],
+          perTurnFeedback: [
+            {
+              turnIndex: 1,
+              score: 72,
+              feedback: '근거를 보강하면 더 좋다.',
+              highlight: {
+                strength: '구조는 좋다.',
+                weakness: '수치 근거 부족',
+                suggestion: '성과 수치를 덧붙여라.',
+              },
+            },
+          ],
+        },
+      },
+      turns: [
+        {
+          turnIndex: 1,
+          questionType: 'base',
+          questionText: '질문 1',
+          answerText: '답변 1',
+          submittedAt: new Date('2026-02-21T00:00:10.000Z'),
+          metricsJson: { answerDuration: 22 },
+        },
+      ],
+    });
+
+    const result = await service.getReport('intv_1', '999999');
+
+    expect(result.report?.view).toBeDefined();
+    expect(result.report?.view?.summary.totalScore).toBe(80);
+    expect(result.report?.view?.record.turns).toHaveLength(1);
+  });
+
+  it('regenerateReport switches interview status to analyzing', async () => {
+    mockPrismaService.interviewSession.findUnique.mockResolvedValue({
+      sessionId: 'intv_1',
+      userId: null,
+      status: 'done',
+      turns: [{ turnIndex: 1, answerText: '답변 1' }],
+    });
+    mockPrismaService.interviewSession.update.mockResolvedValue({});
+    mockReportService.upsertAnalyzingReport.mockResolvedValue(undefined);
+    mockReportService.generateForSession.mockResolvedValue(undefined);
+
+    const result = await service.regenerateReport('intv_1', '999999');
+
+    expect(result.status).toBe('ANALYZING');
+    expect(mockPrismaService.interviewSession.update).toHaveBeenCalledWith({
+      where: { sessionId: 'intv_1' },
+      data: { status: 'analyzing' },
+    });
+    expect(mockReportService.upsertAnalyzingReport).toHaveBeenCalledWith('intv_1');
   });
 
   describe('submitTurn', () => {
