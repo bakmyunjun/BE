@@ -108,6 +108,93 @@ export class InterviewService {
     return `${year}-${month}-${day}`;
   }
 
+  private toDateOnly(date: Date): string {
+    return date.toISOString().slice(0, 10);
+  }
+
+  private toMonthDay(date: Date): string {
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${month}/${day}`;
+  }
+
+  private formatDurationKorean(totalSec: number): string {
+    const safeSec = Number.isFinite(totalSec) ? Math.max(0, Math.floor(totalSec)) : 0;
+    const minutes = Math.floor(safeSec / 60);
+    const seconds = safeSec % 60;
+    return `${minutes}분 ${String(seconds).padStart(2, '0')}초`;
+  }
+
+  private toSafeRecordId(value: bigint | number): number {
+    const asNumber = Number(value);
+    if (!Number.isFinite(asNumber) || asNumber <= 0) return 0;
+    return Math.floor(asNumber);
+  }
+
+  private extractRecordMetrics(
+    reportResultJson: Prisma.JsonValue | null | undefined,
+  ): {
+    logic: number;
+    clarity: number;
+    eyeContact: number;
+    voice: number;
+    star: number;
+    time: number;
+  } {
+    const metrics = {
+      logic: 0,
+      clarity: 0,
+      eyeContact: 0,
+      voice: 0,
+      star: 0,
+      time: 0,
+    };
+
+    const report = this.toJsonObject(reportResultJson);
+    if (!report) return metrics;
+
+    const competencies =
+      report.competencies &&
+      typeof report.competencies === 'object' &&
+      !Array.isArray(report.competencies)
+        ? (report.competencies as Record<string, unknown>)
+        : null;
+    const items = Array.isArray(competencies?.items) ? competencies.items : [];
+
+    for (const item of items) {
+      if (!item || typeof item !== 'object' || Array.isArray(item)) continue;
+      const obj = item as Record<string, unknown>;
+      const key = typeof obj.key === 'string' ? obj.key : '';
+      const score = this.toFiniteNumber(obj.score);
+      if (score === null) continue;
+
+      switch (key) {
+        case 'LOGIC':
+          metrics.logic = score;
+          break;
+        case 'SPECIFICITY':
+          metrics.clarity = score;
+          break;
+        case 'EYE_CONTACT':
+          metrics.eyeContact = score;
+          break;
+        case 'VOICE_TONE':
+          metrics.voice = score;
+          break;
+        case 'STAR_METHOD':
+          metrics.star = score;
+          break;
+        case 'TIME_MANAGEMENT':
+          metrics.time = score;
+          break;
+        default:
+          break;
+      }
+    }
+
+    return metrics;
+  }
+
   private async resolveInterviewTitle(rawTitle?: string): Promise<string> {
     const trimmed = rawTitle?.trim();
     if (trimmed) return trimmed;
@@ -201,6 +288,15 @@ export class InterviewService {
 
   private toNumber(value: unknown): number | null {
     if (typeof value === 'number' && Number.isFinite(value)) return value;
+    return null;
+  }
+
+  private toFiniteNumber(value: unknown): number | null {
+    if (typeof value === 'number' && Number.isFinite(value)) return value;
+    if (typeof value === 'string') {
+      const parsed = Number(value);
+      if (Number.isFinite(parsed)) return parsed;
+    }
     return null;
   }
 
@@ -963,6 +1059,7 @@ export class InterviewService {
             select: {
               status: true,
               totalScore: true,
+              resultJson: true,
               generatedAt: true,
             },
           },
@@ -970,20 +1067,30 @@ export class InterviewService {
       }),
     ]);
 
-    const items = sessions.map((session) => ({
-      interviewId: session.sessionId,
-      title: session.title,
-      interviewStatus: this.toApiStatus(session.status),
-      reportStatus: session.report?.status ?? null,
-      totalScore:
-        typeof session.report?.totalScore === 'number'
-          ? session.report.totalScore
+    const items = sessions.map((session) => {
+      const reportJson =
+        session.report?.resultJson &&
+        typeof session.report.resultJson === 'object' &&
+        !Array.isArray(session.report.resultJson)
+          ? (session.report.resultJson as Record<string, unknown>)
+          : null;
+      const fallbackScore = this.toFiniteNumber(reportJson?.totalScore);
+
+      return {
+        interviewId: session.sessionId,
+        title: session.title,
+        interviewStatus: this.toApiStatus(session.status),
+        reportStatus: session.report?.status ?? null,
+        totalScore:
+          typeof session.report?.totalScore === 'number'
+            ? session.report.totalScore
+            : fallbackScore,
+        generatedAt: session.report?.generatedAt
+          ? session.report.generatedAt.toISOString()
           : null,
-      generatedAt: session.report?.generatedAt
-        ? session.report.generatedAt.toISOString()
-        : null,
-      createdAt: session.createdAt.toISOString(),
-    }));
+        createdAt: session.createdAt.toISOString(),
+      };
+    });
 
     const pageMeta = new PaginationMetaDto(page, size, totalItems);
 
@@ -998,5 +1105,163 @@ export class InterviewService {
         hasPrev: pageMeta.hasPrev,
       },
     };
+  }
+
+  async getInterviewRecords(userId: string): Promise<
+    Array<{
+      id: number;
+      score: number;
+      date: string;
+      duration: string;
+      questionProgress: string;
+      strengths: string[];
+      improvements: string[];
+      metrics: {
+        logic: number;
+        clarity: number;
+        eyeContact: number;
+        voice: number;
+        star: number;
+        time: number;
+      };
+    }>
+  > {
+    const parsedUserId = this.parseUserId(userId);
+    const isProduction = process.env.NODE_ENV === 'production';
+
+    if (isProduction && !parsedUserId) {
+      throw new BadRequestException('잘못된 사용자 식별자입니다');
+    }
+
+    const where: Prisma.InterviewSessionWhereInput = isProduction
+      ? { userId: parsedUserId ?? undefined, report: { is: { status: 'done' } } }
+      : parsedUserId
+        ? {
+            report: { is: { status: 'done' } },
+            OR: [{ userId: parsedUserId }, { userId: null }],
+          }
+        : { userId: null, report: { is: { status: 'done' } } };
+
+    const sessions = await this.prisma.interviewSession.findMany({
+      where,
+      orderBy: { createdAt: 'desc' },
+      select: {
+        sessionId: true,
+        createdAt: true,
+        startedAt: true,
+        endedAt: true,
+        turns: {
+          select: {
+            answerText: true,
+          },
+        },
+        report: {
+          select: {
+            reportId: true,
+            totalScore: true,
+            durationSec: true,
+            generatedAt: true,
+            resultJson: true,
+          },
+        },
+      },
+    });
+
+    return sessions
+      .filter((session): session is typeof session & { report: NonNullable<typeof session.report> } => !!session.report)
+      .map((session) => {
+        const reportJson =
+          session.report.resultJson &&
+          typeof session.report.resultJson === 'object' &&
+          !Array.isArray(session.report.resultJson)
+            ? (session.report.resultJson as Record<string, unknown>)
+            : null;
+        const totalScore = this.toFiniteNumber(session.report.totalScore) ?? this.toFiniteNumber(reportJson?.totalScore) ?? 0;
+        const strengths = this.toStringArray(reportJson?.strengths);
+        const improvements = this.toStringArray(reportJson?.weaknesses);
+        const answeredCount = session.turns.filter(
+          (turn) => turn.answerText.trim().length > 0,
+        ).length;
+        const durationSec =
+          session.report.durationSec ??
+          (session.endedAt
+            ? Math.max(
+                0,
+                Math.floor(
+                  (session.endedAt.getTime() - session.startedAt.getTime()) / 1000,
+                ),
+              )
+            : 0);
+
+        return {
+          id: this.toSafeRecordId(session.report.reportId),
+          score: totalScore,
+          date: this.toDateOnly(session.report.generatedAt ?? session.createdAt),
+          duration: this.formatDurationKorean(durationSec),
+          questionProgress: `${answeredCount}/${MAX_TURNS} 질문 완료`,
+          strengths,
+          improvements,
+          metrics: this.extractRecordMetrics(session.report.resultJson),
+        };
+      });
+  }
+
+  async getInterviewScoreTrend(userId: string): Promise<
+    Array<{
+      date: string;
+      score: number;
+    }>
+  > {
+    const parsedUserId = this.parseUserId(userId);
+    const isProduction = process.env.NODE_ENV === 'production';
+
+    if (isProduction && !parsedUserId) {
+      throw new BadRequestException('잘못된 사용자 식별자입니다');
+    }
+
+    const where: Prisma.InterviewSessionWhereInput = isProduction
+      ? { userId: parsedUserId ?? undefined, report: { is: { status: 'done' } } }
+      : parsedUserId
+        ? {
+            report: { is: { status: 'done' } },
+            OR: [{ userId: parsedUserId }, { userId: null }],
+          }
+        : { userId: null, report: { is: { status: 'done' } } };
+
+    const sessions = await this.prisma.interviewSession.findMany({
+      where,
+      orderBy: { createdAt: 'asc' },
+      select: {
+        createdAt: true,
+        report: {
+          select: {
+            totalScore: true,
+            generatedAt: true,
+            resultJson: true,
+          },
+        },
+      },
+    });
+
+    return sessions
+      .filter((session): session is typeof session & { report: NonNullable<typeof session.report> } => !!session.report)
+      .map((session) => {
+        const reportJson =
+          session.report.resultJson &&
+          typeof session.report.resultJson === 'object' &&
+          !Array.isArray(session.report.resultJson)
+            ? (session.report.resultJson as Record<string, unknown>)
+            : null;
+        const score =
+          this.toFiniteNumber(session.report.totalScore) ??
+          this.toFiniteNumber(reportJson?.totalScore) ??
+          0;
+        const pointDate = session.report.generatedAt ?? session.createdAt;
+
+        return {
+          date: this.toMonthDay(pointDate),
+          score,
+        };
+      });
   }
 }

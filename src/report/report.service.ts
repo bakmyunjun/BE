@@ -1,4 +1,11 @@
-import { Injectable, Logger, OnModuleInit, OnModuleDestroy } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  Logger,
+  NotFoundException,
+  OnModuleDestroy,
+  OnModuleInit,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../database/prisma.service';
@@ -49,6 +56,47 @@ export class ReportService implements OnModuleInit, OnModuleDestroy {
 
   onModuleDestroy() {
     if (this.timer) clearInterval(this.timer);
+  }
+
+  private toFiniteNumber(value: unknown): number | undefined {
+    if (typeof value === 'number' && Number.isFinite(value)) return value;
+    if (typeof value === 'string') {
+      const parsed = Number(value);
+      if (Number.isFinite(parsed)) return parsed;
+    }
+    return undefined;
+  }
+
+  private toStringArray(value: unknown): string[] {
+    if (!Array.isArray(value)) return [];
+    return value.filter((item): item is string => typeof item === 'string');
+  }
+
+  private toScore(value: unknown): number {
+    const parsed = this.toFiniteNumber(value);
+    if (parsed === undefined) return 0;
+    return Math.max(0, Math.min(100, Math.round(parsed)));
+  }
+
+  private parseUserId(userId: string): bigint | null {
+    try {
+      return BigInt(userId);
+    } catch {
+      return null;
+    }
+  }
+
+  private toJsonObject(
+    value: Prisma.JsonValue | null | undefined,
+  ): Record<string, unknown> | null {
+    if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+    return value as Record<string, unknown>;
+  }
+
+  private toPercent(value: number): number {
+    const safe = Number.isFinite(value) ? value : 0;
+    const bounded = Math.max(0, Math.min(100, safe));
+    return Math.round(bounded);
   }
 
   async upsertAnalyzingReport(sessionId: string) {
@@ -132,10 +180,9 @@ export class ReportService implements OnModuleInit, OnModuleDestroy {
       const resultJson = parsed
         ? ({ ...parsed, _rawText: rawText } as Prisma.InputJsonObject)
         : ({ _rawText: rawText } as Prisma.InputJsonObject);
-      const totalScore =
-        parsed && typeof (parsed as Record<string, unknown>).totalScore === 'number'
-          ? ((parsed as Record<string, unknown>).totalScore as number)
-          : undefined;
+      const totalScore = parsed
+        ? this.toFiniteNumber((parsed as Record<string, unknown>).totalScore)
+        : undefined;
 
       await this.prisma.interviewReport.upsert({
         where: { sessionId },
@@ -196,6 +243,197 @@ export class ReportService implements OnModuleInit, OnModuleDestroy {
         data: { status: 'failed' },
       });
     }
+  }
+
+  async getReportSummary(
+    reportId: number,
+    userId: string,
+  ): Promise<{
+    skills: {
+      logic: number;
+      specificity: number;
+      delivery: number;
+      eyeContact: number;
+      voice: number;
+      structure: number;
+    };
+    strengths: string[];
+    improvements: string[];
+  }> {
+    if (!Number.isInteger(reportId) || reportId <= 0) {
+      throw new BadRequestException('유효하지 않은 리포트 ID입니다');
+    }
+
+    const row = await this.prisma.interviewReport.findUnique({
+      where: { reportId: BigInt(reportId) },
+      select: {
+        resultJson: true,
+        session: {
+          select: {
+            userId: true,
+          },
+        },
+      },
+    });
+
+    if (!row) {
+      throw new NotFoundException(`리포트를 찾을 수 없습니다: ${reportId}`);
+    }
+
+    const parsedUserId = this.parseUserId(userId);
+    const isProduction = process.env.NODE_ENV === 'production';
+    const sessionUserId = row.session.userId;
+    if (sessionUserId && (isProduction || parsedUserId)) {
+      if (!parsedUserId || parsedUserId !== sessionUserId) {
+        throw new BadRequestException('리포트에 대한 권한이 없습니다');
+      }
+    }
+
+    const result =
+      row.resultJson &&
+      typeof row.resultJson === 'object' &&
+      !Array.isArray(row.resultJson)
+        ? (row.resultJson as Record<string, unknown>)
+        : null;
+
+    const competenciesRaw =
+      result?.competencies &&
+      typeof result.competencies === 'object' &&
+      !Array.isArray(result.competencies)
+        ? (result.competencies as Record<string, unknown>)
+        : null;
+    const competencyItems = Array.isArray(competenciesRaw?.items)
+      ? competenciesRaw.items
+      : [];
+
+    const scoreByKey = new Map<string, number>();
+    for (const item of competencyItems) {
+      if (!item || typeof item !== 'object' || Array.isArray(item)) continue;
+      const obj = item as Record<string, unknown>;
+      if (typeof obj.key !== 'string') continue;
+      scoreByKey.set(obj.key, this.toScore(obj.score));
+    }
+
+    const strengths = this.toStringArray(result?.strengths).slice(0, 3);
+    const improvements = this.toStringArray(result?.weaknesses).slice(0, 3);
+
+    return {
+      skills: {
+        logic: scoreByKey.get('LOGIC') ?? 0,
+        specificity: scoreByKey.get('SPECIFICITY') ?? 0,
+        delivery:
+          scoreByKey.get('COMMUNICATION') ??
+          scoreByKey.get('VOICE_TONE') ??
+          scoreByKey.get('LOGIC') ??
+          0,
+        eyeContact: scoreByKey.get('EYE_CONTACT') ?? 0,
+        voice: scoreByKey.get('VOICE_TONE') ?? 0,
+        structure: scoreByKey.get('STAR_METHOD') ?? 0,
+      },
+      strengths,
+      improvements,
+    };
+  }
+
+  async getTurnMetrics(
+    reportId: number,
+    userId: string,
+  ): Promise<
+    Array<{
+      question: string;
+      time: number;
+      eyeOff: number;
+      silence: number;
+    }>
+  > {
+    if (!Number.isInteger(reportId) || reportId <= 0) {
+      throw new BadRequestException('유효하지 않은 리포트 ID입니다');
+    }
+
+    const row = await this.prisma.interviewReport.findUnique({
+      where: { reportId: BigInt(reportId) },
+      select: {
+        session: {
+          select: {
+            userId: true,
+            turns: {
+              orderBy: { turnIndex: 'asc' },
+              select: {
+                turnIndex: true,
+                metricsJson: true,
+              },
+            },
+          },
+        },
+      },
+    });
+
+    if (!row) {
+      throw new NotFoundException(`리포트를 찾을 수 없습니다: ${reportId}`);
+    }
+
+    const parsedUserId = this.parseUserId(userId);
+    const isProduction = process.env.NODE_ENV === 'production';
+    const sessionUserId = row.session.userId;
+    if (sessionUserId && (isProduction || parsedUserId)) {
+      if (!parsedUserId || parsedUserId !== sessionUserId) {
+        throw new BadRequestException('리포트에 대한 권한이 없습니다');
+      }
+    }
+
+    return row.session.turns.map((turn) => {
+      const metrics = this.toJsonObject(turn.metricsJson);
+      const answerDuration = this.toFiniteNumber(metrics?.answerDuration) ?? 0;
+
+      const faceMetrics = this.toJsonObject(metrics?.faceMetrics as Prisma.JsonValue);
+      const voiceMetrics = this.toJsonObject(
+        metrics?.voiceMetrics as Prisma.JsonValue,
+      );
+      const expressionDistribution = this.toJsonObject(
+        faceMetrics?.expressionDistribution as Prisma.JsonValue,
+      );
+      const timeDistribution = this.toJsonObject(
+        voiceMetrics?.timeDistribution as Prisma.JsonValue,
+      );
+
+      const pauseSec = this.toFiniteNumber(timeDistribution?.pause) ?? 0;
+      const speakingSec = this.toFiniteNumber(timeDistribution?.speaking) ?? 0;
+      const totalVoiceSec = pauseSec + speakingSec;
+      const silence =
+        totalVoiceSec > 0
+          ? this.toPercent((pauseSec / totalVoiceSec) * 100)
+          : this.toPercent(
+              this.toFiniteNumber(voiceMetrics?.silencePercent) ??
+                ((this.toFiniteNumber(voiceMetrics?.silenceRatio) ?? 0) * 100),
+            );
+
+      const eyeOffCandidates: unknown[] = [
+        faceMetrics?.eyeOffPercent,
+        faceMetrics?.eyeOff,
+        faceMetrics?.eyeOffRatio,
+        faceMetrics?.gazeAwayPercent,
+        faceMetrics?.offscreenPercent,
+        expressionDistribution?.eyeOff,
+        expressionDistribution?.offscreen,
+        expressionDistribution?.away,
+      ];
+
+      let eyeOff = 0;
+      for (const candidate of eyeOffCandidates) {
+        const parsed = this.toFiniteNumber(candidate);
+        if (parsed === undefined) continue;
+        eyeOff =
+          parsed <= 1 ? this.toPercent(parsed * 100) : this.toPercent(parsed);
+        break;
+      }
+
+      return {
+        question: `Q${turn.turnIndex}`,
+        time: Math.max(0, Math.round(answerDuration)),
+        eyeOff,
+        silence,
+      };
+    });
   }
 
   private buildReportPrompt(session: {

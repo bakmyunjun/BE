@@ -4,6 +4,7 @@ import { InterviewService } from './interview.service';
 import { AiService } from '../ai/ai.service';
 import { PrismaService } from '../database/prisma.service';
 import { ReportService } from '../report/report.service';
+import { PaginationQueryDto } from '../common/dto/pagination-query.dto';
 
 describe('InterviewService', () => {
   let service: InterviewService;
@@ -195,6 +196,122 @@ describe('InterviewService', () => {
       data: { status: 'analyzing' },
     });
     expect(mockReportService.upsertAnalyzingReport).toHaveBeenCalledWith('intv_1');
+  });
+
+  it('getReports falls back to resultJson.totalScore when report.totalScore is null', async () => {
+    mockPrismaService.$transaction.mockResolvedValueOnce([
+      1,
+      [
+        {
+          sessionId: 'intv_1',
+          title: '백엔드 면접 1회차',
+          status: 'done',
+          createdAt: new Date('2026-02-22T12:00:00.000Z'),
+          report: {
+            status: 'done',
+            totalScore: null,
+            generatedAt: new Date('2026-02-22T12:30:00.000Z'),
+            resultJson: { totalScore: '82.5' },
+          },
+        },
+      ],
+    ]);
+
+    const query = new PaginationQueryDto();
+    query.page = 1;
+    query.size = 10;
+
+    const result = await service.getReports('999999', query);
+
+    expect(result.items).toHaveLength(1);
+    expect(result.items[0].totalScore).toBe(82.5);
+    expect(result.items[0].reportStatus).toBe('done');
+  });
+
+  it('getInterviewRecords returns home record payload shape', async () => {
+    mockPrismaService.interviewSession.findMany.mockResolvedValueOnce([
+      {
+        sessionId: 'intv_1',
+        createdAt: new Date('2026-02-22T12:00:00.000Z'),
+        startedAt: new Date('2026-02-22T11:40:00.000Z'),
+        endedAt: new Date('2026-02-22T12:01:05.000Z'),
+        turns: [
+          { answerText: '답변 1' },
+          { answerText: '답변 2' },
+          { answerText: '   ' },
+        ],
+        report: {
+          reportId: BigInt(1),
+          totalScore: null,
+          durationSec: null,
+          generatedAt: new Date('2026-02-22T12:05:00.000Z'),
+          resultJson: {
+            totalScore: '72',
+            strengths: ['STAR 기법'],
+            weaknesses: ['목소리 변조', '어휘 다양성'],
+            competencies: {
+              items: [
+                { key: 'LOGIC', score: 75 },
+                { key: 'SPECIFICITY', score: 65 },
+                { key: 'EYE_CONTACT', score: 62 },
+                { key: 'VOICE_TONE', score: 70 },
+                { key: 'STAR_METHOD', score: 76 },
+                { key: 'TIME_MANAGEMENT', score: 84 },
+              ],
+            },
+          },
+        },
+      },
+    ]);
+
+    const result = await service.getInterviewRecords('999999');
+
+    expect(result).toHaveLength(1);
+    expect(result[0]).toEqual({
+      id: 1,
+      score: 72,
+      date: '2026-02-22',
+      duration: '21분 05초',
+      questionProgress: '2/10 질문 완료',
+      strengths: ['STAR 기법'],
+      improvements: ['목소리 변조', '어휘 다양성'],
+      metrics: {
+        logic: 75,
+        clarity: 65,
+        eyeContact: 62,
+        voice: 70,
+        star: 76,
+        time: 84,
+      },
+    });
+  });
+
+  it('getInterviewScoreTrend returns MM/DD score points', async () => {
+    mockPrismaService.interviewSession.findMany.mockResolvedValueOnce([
+      {
+        createdAt: new Date('2026-02-20T10:00:00.000Z'),
+        report: {
+          totalScore: null,
+          generatedAt: new Date('2026-02-20T10:10:00.000Z'),
+          resultJson: { totalScore: '68' },
+        },
+      },
+      {
+        createdAt: new Date('2026-02-21T10:00:00.000Z'),
+        report: {
+          totalScore: 81,
+          generatedAt: new Date('2026-02-21T10:12:00.000Z'),
+          resultJson: {},
+        },
+      },
+    ]);
+
+    const result = await service.getInterviewScoreTrend('999999');
+
+    expect(result).toEqual([
+      { date: '02/20', score: 68 },
+      { date: '02/21', score: 81 },
+    ]);
   });
 
   describe('submitTurn', () => {
