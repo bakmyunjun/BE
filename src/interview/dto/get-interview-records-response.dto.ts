@@ -22,8 +22,25 @@ export class InterviewRecordMetricsDto {
 }
 
 export class InterviewRecordDto {
-  @ApiProperty({ example: 1 })
+  @ApiProperty({
+    example: 1,
+    description:
+      'Deprecated. reportId와 동일한 값입니다. 호환성 유지를 위해 유지됩니다.',
+  })
   id: number;
+
+  @ApiProperty({ example: 'intv_11139', description: '면접 ID(sessionId)' })
+  interviewId: string;
+
+  @ApiProperty({ example: 44, description: '리포트 ID' })
+  reportId: number;
+
+  @ApiProperty({
+    example: '2026-02-22 (01)',
+    nullable: true,
+    description: '면접 제목 (없을 수 있음)',
+  })
+  title: string | null;
 
   @ApiProperty({ example: 72, description: '총점 (0-100)' })
   score: number;

@@ -1110,6 +1110,9 @@ export class InterviewService {
   async getInterviewRecords(userId: string): Promise<
     Array<{
       id: number;
+      interviewId: string;
+      reportId: number;
+      title: string | null;
       score: number;
       date: string;
       duration: string;
@@ -1147,6 +1150,7 @@ export class InterviewService {
       orderBy: { createdAt: 'desc' },
       select: {
         sessionId: true,
+        title: true,
         createdAt: true,
         startedAt: true,
         endedAt: true,
@@ -1193,8 +1197,13 @@ export class InterviewService {
               )
             : 0);
 
+        const reportId = this.toSafeRecordId(session.report.reportId);
+
         return {
-          id: this.toSafeRecordId(session.report.reportId),
+          id: reportId,
+          interviewId: session.sessionId,
+          reportId,
+          title: session.title ?? null,
           score: totalScore,
           date: this.toDateOnly(session.report.generatedAt ?? session.createdAt),
           duration: this.formatDurationKorean(durationSec),

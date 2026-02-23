@@ -269,6 +269,9 @@ describe('InterviewService', () => {
     expect(result).toHaveLength(1);
     expect(result[0]).toEqual({
       id: 1,
+      interviewId: 'intv_1',
+      reportId: 1,
+      title: null,
       score: 72,
       date: '2026-02-22',
       duration: '21분 05초',
