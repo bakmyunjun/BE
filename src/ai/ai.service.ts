@@ -187,7 +187,7 @@ export class AiService {
     const text = await this.generateText({
       systemPrompt: 'You are a strict JSON generator. Output JSON only. No markdown.',
       userPrompt: prompt,
-      tokenLimit: 1500,
+      tokenLimit: 4096,
       temperature: 0.2,
     });
 
