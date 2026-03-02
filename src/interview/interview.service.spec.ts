@@ -125,6 +125,7 @@ describe('InterviewService', () => {
     const result = await service.getReport('intv_1', '999999');
 
     expect(result.title).toBe('백엔드 면접 1회차');
+    expect(result.reportId).toBeNull();
   });
 
   it('getReport response includes normalized report view', async () => {
@@ -134,6 +135,7 @@ describe('InterviewService', () => {
       userId: null,
       status: 'done',
       report: {
+        reportId: BigInt(1),
         status: 'done',
         totalScore: 80,
         durationSec: 600,
@@ -173,6 +175,8 @@ describe('InterviewService', () => {
     const result = await service.getReport('intv_1', '999999');
 
     expect(result.report?.view).toBeDefined();
+    expect(result.reportId).toBe(1);
+    expect(result.report?.reportId).toBe(1);
     expect(result.report?.view?.summary.totalScore).toBe(80);
     expect(result.report?.view?.record.turns).toHaveLength(1);
   });

@@ -11,6 +11,13 @@ export class InterviewReportViewDto {
 }
 
 export class InterviewReportPayloadDto {
+  @ApiPropertyOptional({
+    example: 123,
+    description: '리포트 ID',
+    nullable: true,
+  })
+  reportId?: number | null;
+
   @ApiProperty({ example: 'analyzing', enum: ['analyzing', 'done', 'failed'] })
   status: 'analyzing' | 'done' | 'failed';
 
@@ -164,6 +171,13 @@ export class InterviewReportPayloadDto {
 export class GetInterviewReportDataDto {
   @ApiProperty({ example: 'intv_123' })
   interviewId: string;
+
+  @ApiPropertyOptional({
+    example: 123,
+    description: '리포트 ID',
+    nullable: true,
+  })
+  reportId?: number | null;
 
   @ApiProperty({ example: '프론트엔드 모의면접' })
   title: string | null;

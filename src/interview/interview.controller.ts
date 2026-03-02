@@ -178,9 +178,11 @@ export class InterviewController {
       code: 'SUCCESS',
       data: {
         interviewId: 'intv_123',
+        reportId: 123,
         title: '2026-02-21 (01)',
         interviewStatus: 'DONE',
         report: {
+          reportId: 123,
           status: 'done',
           totalScore: 82.5,
           durationSec: 615,

@@ -860,9 +860,11 @@ export class InterviewService {
     userId: string,
   ): Promise<{
     interviewId: string;
+    reportId: number | null;
     title: string | null;
     interviewStatus: 'IN_PROGRESS' | 'ANALYZING' | 'DONE' | 'FAILED';
     report: {
+      reportId?: number;
       status: 'analyzing' | 'done' | 'failed';
       totalScore?: number;
       durationSec?: number;
@@ -882,6 +884,7 @@ export class InterviewService {
         status: true,
         report: {
           select: {
+            reportId: true,
             status: true,
             totalScore: true,
             durationSec: true,
@@ -913,8 +916,12 @@ export class InterviewService {
     }
 
     const interviewStatus = this.toApiStatus(session.status);
+    const reportId = session.report
+      ? this.toSafeRecordId(session.report.reportId)
+      : 0;
     const report = session.report
       ? {
+          reportId,
           status: session.report.status,
           ...(typeof session.report.totalScore === 'number'
             ? { totalScore: session.report.totalScore }
@@ -951,6 +958,7 @@ export class InterviewService {
 
     return {
       interviewId: session.sessionId,
+      reportId: reportId > 0 ? reportId : null,
       title: session.title,
       interviewStatus,
       report,
