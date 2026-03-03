@@ -18,7 +18,7 @@ import type { Env } from '../config/env.schema';
       useFactory: (configService: ConfigService<Env, true>) => ({
         secret: configService.get('JWT_ACCESS_SECRET', { infer: true }),
         signOptions: {
-          expiresIn: '15m',
+          expiresIn: '1h',
         },
       }),
     }),

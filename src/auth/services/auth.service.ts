@@ -70,7 +70,7 @@ export class AuthService {
     const payload = { sub: userId.toString(), email };
     return this.jwtService.signAsync(payload, {
       secret: this.configService.get('JWT_ACCESS_SECRET', { infer: true }),
-      expiresIn: '15m', // 15분
+      expiresIn: '1h', // 1시간
     });
   }
 
@@ -431,7 +431,7 @@ export class AuthService {
       },
       {
         secret: this.configService.get('JWT_ACCESS_SECRET', { infer: true }),
-        expiresIn: '1d', // 개발용이므로 길게 설정
+        expiresIn: '1h', // 1시간
       },
     );
 
